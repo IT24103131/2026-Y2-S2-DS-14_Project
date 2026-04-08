@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourcePerFileMappings">
+    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/eb40b648-e364-4050-a09d-741c974e0652/console.sql" value="eb40b648-e364-4050-a09d-741c974e0652" />
+    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/eb40b648-e364-4050-a09d-741c974e0652/console_1.sql" value="eb40b648-e364-4050-a09d-741c974e0652" />
+    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/eb40b648-e364-4050-a09d-741c974e0652/console_2.sql" value="eb40b648-e364-4050-a09d-741c974e0652" />
+    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/eb40b648-e364-4050-a09d-741c974e0652/console_3.sql" value="eb40b648-e364-4050-a09d-741c974e0652" />
+    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/eb40b648-e364-4050-a09d-741c974e0652/console_4.sql" value="eb40b648-e364-4050-a09d-741c974e0652" />
+    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/eb40b648-e364-4050-a09d-741c974e0652/console_5.sql" value="eb40b648-e364-4050-a09d-741c974e0652" />
+    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/eb40b648-e364-4050-a09d-741c974e0652/console_6.sql" value="eb40b648-e364-4050-a09d-741c974e0652" />
+    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/eb40b648-e364-4050-a09d-741c974e0652/console_7.sql" value="eb40b648-e364-4050-a09d-741c974e0652" />
+  </component>
+</project>

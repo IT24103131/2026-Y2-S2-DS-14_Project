@@ -1,0 +1,63 @@
+/* ─── CSS Variables ───────────────────────────────────────── */
+:root {
+    --bg-main: #e8f0ef;
+    --bg-sidebar: #2d4a47;
+    --bg-card: #4d8a82;
+    --bg-card-light: #5a9990;
+    --bg-card-dark: #3d7068;
+    --bg-input: rgba(255,255,255,0.85);
+    --bg-input-focus: #ffffff;
+    --text-primary: #1a2e2b;
+    --text-sidebar: #e8f0ef;
+    --text-muted: #5a7a76;
+    --text-card: #1a2e2b;
+    --text-on-teal: #ffffff;
+    --accent-red: #8b1a1a;
+    --accent-red-hover: #a52020;
+    --accent-teal-light: #7ab8b0;
+    --border-card: rgba(255,255,255,0.18);
+    --border-input: rgba(255,255,255,0.6);
+    --shadow-card: 0 4px 24px rgba(45,74,71,0.18), 0 1px 4px rgba(45,74,71,0.1);
+    --shadow-input: 0 2px 8px rgba(45,74,71,0.1);
+    --radius-card: 16px;
+    --radius-input: 10px;
+    --radius-btn: 10px;
+}
+
+/* ─── Global reset & base ─────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body, #root {
+    height: 100%;
+    width: 100%;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-family: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+}
+
+#root {
+    max-width: unset;
+    padding: unset;
+    text-align: unset;
+}
+
+/* ─── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: rgba(77,138,130,0.35);
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(77,138,130,0.6); }
+
+/* ─── Selection ───────────────────────────────────────────── */
+::selection {
+    background: rgba(77,138,130,0.3);
+    color: var(--text-primary);
+}

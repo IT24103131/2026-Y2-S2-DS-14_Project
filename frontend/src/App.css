@@ -1,0 +1,36 @@
+/* ─── Global reset & base ─────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body, #root {
+    height: 100%;
+    width: 100%;
+    background: #e8f0ef;
+    color: #1a2e2b;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+    max-width: unset;
+    padding: unset;
+    text-align: unset;
+}
+
+/* ─── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: rgba(77,138,130,0.35);
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(77,138,130,0.6); }
+
+/* ─── Selection ───────────────────────────────────────────── */
+::selection {
+    background: rgba(77,138,130,0.3);
+    color: #1a2e2b;
+}
