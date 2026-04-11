@@ -68,24 +68,70 @@ def _predict_cluster(o, c, e, a, n) -> int | None:
     return int(model.predict(df)[0])
 
 
+# ── Helper — check if a saved location matches a hotel's location string ───────
+def _location_matches(hotel_location: str, saved_locations: list) -> bool:
+    """
+    Hotel table stores full addresses like 'Kandy, Kandy District, Central Province'.
+    Destinations table stores short names like 'Kandy'.
+    We split the hotel address by ',' and check each part against saved locations.
+    This handles cases like 'Pottuvil, Arugam Bay, Eastern Province' matching
+    either 'Pottuvil' or 'Arugam Bay'.
+    """
+    hotel_loc_lower = (hotel_location or "").lower().strip()
+    # Split hotel address into individual parts for matching
+    hotel_parts = [p.strip() for p in hotel_loc_lower.split(",") if p.strip()]
+
+    for saved_loc in saved_locations:
+        # Direct substring match (original logic)
+        if saved_loc in hotel_loc_lower:
+            return True
+        # Match against individual parts of the hotel address
+        for part in hotel_parts:
+            if saved_loc in part or part in saved_loc:
+                return True
+    return False
+
+
+def _row_to_dict(h) -> dict:
+    """Convert a hotel DB row to a JSON-serializable dict."""
+    return {
+        "hotel_id":                h[0],
+        "name":                    h[1],
+        "location":                h[2],
+        "budget_per_night":        float(h[3]) if h[3] else 0,
+        "openness_score":          float(h[4]) if h[4] else 0,
+        "conscientiousness_score": float(h[5]) if h[5] else 0,
+        "extraversion_score":      float(h[6]) if h[6] else 0,
+        "agreeableness_score":     float(h[7]) if h[7] else 0,
+        "neuroticism_score":       float(h[8]) if h[8] else 0,
+    }
+
+
+_HOTEL_COLUMNS = """hotel_id, name, location, budget_per_night,
+                    openness_score, conscientiousness_score,
+                    extraversion_score, agreeableness_score, neuroticism_score"""
+
+
 # ── GET /hotels ────────────────────────────────────────────────────────────────
 @hotels_router.get("/hotels")
 @login_required
 def get_hotel_recommendations(current_user, db):
     """
-    Full two-table flow:
-      1. Read user OCEAN scores from quiz_result
-      2. Predict hotel cluster (KMeans)
-      3. Query hotel table filtered by cluster + saved locations
-      4. Write results to recommended_hotels (clears old rows first)
-      5. Return enriched list to frontend
+    Returns recommended hotels for the logged-in user.
 
-    If the model is unavailable, returns hotels filtered by location only.
-    If no quiz result → 400.
+    Logic:
+    1. Read user's OCEAN scores from their latest quiz_result
+    2. Predict hotel cluster using the KMeans model
+    3. Fetch matching hotels from the hotel table
+    4. Filter by user's saved locations (from selected_locations) if they exist
+    5. Return top 10 results
+
+    If no quiz result exists → 400.
+    If model unavailable → returns hotels filtered by location only.
     """
     # ── 1. OCEAN scores ──────────────────────────────────────────────────────
     qr = db.execute(
-        text("""
+        text(f"""
              SELECT openness_score, conscientiousness_score, extraversion_score,
                     agreeableness_score, neuroticism_score
              FROM quiz_result
@@ -103,24 +149,33 @@ def get_hotel_recommendations(current_user, db):
     # ── 2. Predict cluster ───────────────────────────────────────────────────
     cluster = _predict_cluster(o, c, e, a, n)
 
-    # ── 3. Get hotels from hotel table ───────────────────────────────────────
+    # Step 3: Get hotels from DB — filter by cluster if model worked
     if cluster is not None:
-        hotels_rows = db.execute(
+        hotels = db.execute(
             text("""
-                 SELECT hotel_id, name, location, budget_per_night
+                 SELECT hotel_id, name, location, budget_per_night,
+                        openness_score, conscientiousness_score,
+                        extraversion_score, agreeableness_score, neuroticism_score
                  FROM hotel
-                 WHERE cluster_id = :cl
+                 WHERE cluster_id = :cluster
                  ORDER BY name
                  """),
-            {"cl": cluster}
+            {"cluster": cluster}
         ).fetchall()
     else:
-        hotels_rows = db.execute(
-            text("SELECT hotel_id, name, location, budget_per_night FROM hotel ORDER BY name")
+        # Model unavailable — return all hotels
+        hotels = db.execute(
+            text("""
+                 SELECT hotel_id, name, location, budget_per_night,
+                        openness_score, conscientiousness_score,
+                        extraversion_score, agreeableness_score, neuroticism_score
+                 FROM hotel
+                 ORDER BY name
+                 """)
         ).fetchall()
 
-    # ── 4. Filter by saved locations ─────────────────────────────────────────
-    saved_loc_row = db.execute(
+    # Step 4: Get user's saved locations to filter hotels
+    saved_row = db.execute(
         text("""
              SELECT selected_destination FROM selected_locations
              WHERE user_id = :uid
@@ -130,22 +185,33 @@ def get_hotel_recommendations(current_user, db):
     ).fetchone()
 
     saved_locations = []
-    if saved_loc_row and saved_loc_row[0]:
-        saved_locations = [loc.strip().lower() for loc in saved_loc_row[0].split("|") if loc.strip()]
+    if saved_row and saved_row[0]:
+        # selected_destination is pipe-separated e.g. "Kandy|Ella|Galle"
+        saved_locations = [loc.strip().lower() for loc in saved_row[0].split("|") if loc.strip()]
 
+    # Step 5: Filter hotels by saved locations (if any selected)
     results = []
-    for h in hotels_rows:
-        hotel_loc_lower = (h[2] or "").lower()
+    for h in hotels:
+        hotel_dict = {
+            "hotel_id":              h[0],
+            "name":                  h[1],
+            "location":              h[2],
+            "budget_per_night":      float(h[3]) if h[3] else 0,
+            "openness_score":        float(h[4]) if h[4] else 0,
+            "conscientiousness_score": float(h[5]) if h[5] else 0,
+            "extraversion_score":    float(h[6]) if h[6] else 0,
+            "agreeableness_score":   float(h[7]) if h[7] else 0,
+            "neuroticism_score":     float(h[8]) if h[8] else 0,
+        }
         if saved_locations:
-            if not any(loc in hotel_loc_lower or hotel_loc_lower in loc for loc in saved_locations):
-                continue
-        results.append({
-            "hotel_id":         h[0],
-            "name":             h[1],
-            "location":         h[2],
-            "budget_per_night": float(h[3]) if h[3] else 0,
-        })
+            hotel_loc_lower = (h[2] or "").lower()
+            # Match if any saved location name appears in the hotel's location string
+            if any(loc in hotel_loc_lower or hotel_loc_lower in loc for loc in saved_locations):
+                results.append(hotel_dict)
+        else:
+            results.append(hotel_dict)
 
+    # Cap at 10 results
     results = results[:10]
 
     # ── 5. Write to recommended_hotels (clear + re-fill) ────────────────────
@@ -175,10 +241,10 @@ def get_hotel_recommendations(current_user, db):
         print(f"[hotel_routes] WARNING: could not write to recommended_hotels: {e}")
 
     return jsonify({
-        "personality_cluster": cluster,
-        "locations_used":      saved_locations,
-        "count":               len(results),
-        "hotels":              results,
+        "personality_cluster":  cluster,
+        "locations_used":       saved_locations,
+        "count":                len(results),
+        "hotels":               results,
     }), 200
 
 
