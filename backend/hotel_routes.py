@@ -1,21 +1,22 @@
 """
 hotel_routes.py  —  backend/
-Member 4's hotel recommender endpoints, integrated into the main Flask backend.
+Member 4's hotel recommender, integrated into the main Flask backend.
 
-Integration changes from member 4's original:
-  • Flask Blueprint instead of FastAPI — runs on the SAME port 8000 server
-  • JWT auth via @login_required — user_id comes from token, never hardcoded
-  • OCEAN scores read from quiz_result table — user doesn't re-enter them
-  • Hotel filtering uses the user's saved locations from selected_locations
-  • hotel_model.joblib must be in backend/ (place it there alongside this file)
-  • Model input scale: divide 0-10 stored scores by 10 → 0-1 scale the model expects
+Correct two-table flow (matches schema design):
+  hotel table
+    → [KMeans model predicts cluster]
+    → recommended_hotels  (AI staging table — cleared + re-filled each visit)
+    → [user clicks Save + picks dates]
+    → selected_hotels  (user's confirmed choices with check_in/check_out)
 
-Endpoints added:
-  GET  /hotels              → recommended hotels for the logged-in user
-  POST /hotels/save         → save a hotel to selected_hotels
-  GET  /hotels/saved        → get user's saved hotels
-  PUT  /hotels/saved/<id>   → update budget for a saved hotel
-  DELETE /hotels/saved/<id> → remove a saved hotel
+Place hotel_model.joblib in backend/ alongside this file.
+
+Endpoints:
+  GET    /hotels              → run AI, save to recommended_hotels, return list
+  POST   /hotels/save         → move hotel from recommended → selected_hotels
+  GET    /hotels/saved        → user's selected hotels
+  PUT    /hotels/saved/<id>   → edit budget / dates
+  DELETE /hotels/saved/<id>   → remove from selected
 """
 
 import os
@@ -33,28 +34,25 @@ warnings.filterwarnings("ignore")
 
 hotels_router = Blueprint("hotels_router", __name__)
 
-# ── Load hotel KMeans model ────────────────────────────────────────────────────
+# ── Load KMeans model ──────────────────────────────────────────────────────────
 _MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hotel_model.joblib")
 _hotel_model = None
 
 def _get_model():
     global _hotel_model
-    if _hotel_model is None:
-        if os.path.exists(_MODEL_PATH):
-            try:
-                _hotel_model = joblib.load(_MODEL_PATH)
-                print(f"[hotel_routes] Hotel model loaded from {_MODEL_PATH}")
-            except Exception as e:
-                print(f"[hotel_routes] Could not load hotel model: {e}")
-        else:
-            print(f"[hotel_routes] WARNING: hotel_model.joblib not found at {_MODEL_PATH}")
+    if _hotel_model is None and os.path.exists(_MODEL_PATH):
+        try:
+            _hotel_model = joblib.load(_MODEL_PATH)
+            print(f"[hotel_routes] Hotel KMeans model loaded")
+        except Exception as e:
+            print(f"[hotel_routes] Could not load model: {e}")
     return _hotel_model
 
 
-def _predict_cluster(o: float, c: float, e: float, a: float, n: float) -> int:
+def _predict_cluster(o, c, e, a, n) -> int | None:
     """
-    Predict the hotel cluster for a user's OCEAN scores.
-    Scores stored in DB are 0-10 scale; model expects 0-1 scale.
+    Predict hotel cluster from OCEAN scores (0-10 scale from DB).
+    Model was trained on 0-1 scale → divide by 10.
     Returns cluster int 0-4, or None if model unavailable.
     """
     model = _get_model()
@@ -75,19 +73,17 @@ def _predict_cluster(o: float, c: float, e: float, a: float, n: float) -> int:
 @login_required
 def get_hotel_recommendations(current_user, db):
     """
-    Returns recommended hotels for the logged-in user.
+    Full two-table flow:
+      1. Read user OCEAN scores from quiz_result
+      2. Predict hotel cluster (KMeans)
+      3. Query hotel table filtered by cluster + saved locations
+      4. Write results to recommended_hotels (clears old rows first)
+      5. Return enriched list to frontend
 
-    Logic:
-    1. Read user's OCEAN scores from their latest quiz_result
-    2. Predict hotel cluster using the KMeans model
-    3. Fetch matching hotels from the hotel table
-    4. Filter by user's saved locations (from selected_locations) if they exist
-    5. Return top 10 results
-
-    If no quiz result exists → 400.
-    If model unavailable → returns hotels filtered by location only.
+    If the model is unavailable, returns hotels filtered by location only.
+    If no quiz result → 400.
     """
-    # Step 1: Get OCEAN scores from quiz_result
+    # ── 1. OCEAN scores ──────────────────────────────────────────────────────
     qr = db.execute(
         text("""
              SELECT openness_score, conscientiousness_score, extraversion_score,
@@ -104,36 +100,27 @@ def get_hotel_recommendations(current_user, db):
 
     o, c, e, a, n = [float(x) for x in qr]
 
-    # Step 2: Predict cluster
+    # ── 2. Predict cluster ───────────────────────────────────────────────────
     cluster = _predict_cluster(o, c, e, a, n)
 
-    # Step 3: Get hotels from DB — filter by cluster if model worked
+    # ── 3. Get hotels from hotel table ───────────────────────────────────────
     if cluster is not None:
-        hotels = db.execute(
+        hotels_rows = db.execute(
             text("""
-                 SELECT hotel_id, name, location, budget_per_night,
-                        openness_score, conscientiousness_score,
-                        extraversion_score, agreeableness_score, neuroticism_score
+                 SELECT hotel_id, name, location, budget_per_night
                  FROM hotel
-                 WHERE cluster_id = :cluster
+                 WHERE cluster_id = :cl
                  ORDER BY name
                  """),
-            {"cluster": cluster}
+            {"cl": cluster}
         ).fetchall()
     else:
-        # Model unavailable — return all hotels
-        hotels = db.execute(
-            text("""
-                 SELECT hotel_id, name, location, budget_per_night,
-                        openness_score, conscientiousness_score,
-                        extraversion_score, agreeableness_score, neuroticism_score
-                 FROM hotel
-                 ORDER BY name
-                 """)
+        hotels_rows = db.execute(
+            text("SELECT hotel_id, name, location, budget_per_night FROM hotel ORDER BY name")
         ).fetchall()
 
-    # Step 4: Get user's saved locations to filter hotels
-    saved_row = db.execute(
+    # ── 4. Filter by saved locations ─────────────────────────────────────────
+    saved_loc_row = db.execute(
         text("""
              SELECT selected_destination FROM selected_locations
              WHERE user_id = :uid
@@ -143,40 +130,55 @@ def get_hotel_recommendations(current_user, db):
     ).fetchone()
 
     saved_locations = []
-    if saved_row and saved_row[0]:
-        # selected_destination is pipe-separated e.g. "Kandy|Ella|Galle"
-        saved_locations = [loc.strip().lower() for loc in saved_row[0].split("|") if loc.strip()]
+    if saved_loc_row and saved_loc_row[0]:
+        saved_locations = [loc.strip().lower() for loc in saved_loc_row[0].split("|") if loc.strip()]
 
-    # Step 5: Filter hotels by saved locations (if any selected)
     results = []
-    for h in hotels:
-        hotel_dict = {
-            "hotel_id":              h[0],
-            "name":                  h[1],
-            "location":              h[2],
-            "budget_per_night":      float(h[3]) if h[3] else 0,
-            "openness_score":        float(h[4]) if h[4] else 0,
-            "conscientiousness_score": float(h[5]) if h[5] else 0,
-            "extraversion_score":    float(h[6]) if h[6] else 0,
-            "agreeableness_score":   float(h[7]) if h[7] else 0,
-            "neuroticism_score":     float(h[8]) if h[8] else 0,
-        }
+    for h in hotels_rows:
+        hotel_loc_lower = (h[2] or "").lower()
         if saved_locations:
-            hotel_loc_lower = (h[2] or "").lower()
-            # Match if any saved location name appears in the hotel's location string
-            if any(loc in hotel_loc_lower or hotel_loc_lower in loc for loc in saved_locations):
-                results.append(hotel_dict)
-        else:
-            results.append(hotel_dict)
+            if not any(loc in hotel_loc_lower or hotel_loc_lower in loc for loc in saved_locations):
+                continue
+        results.append({
+            "hotel_id":         h[0],
+            "name":             h[1],
+            "location":         h[2],
+            "budget_per_night": float(h[3]) if h[3] else 0,
+        })
 
-    # Cap at 10 results
     results = results[:10]
 
+    # ── 5. Write to recommended_hotels (clear + re-fill) ────────────────────
+    # This is what the recommended_hotels table is designed for:
+    # it stores the AI's current recommendation set for this user.
+    try:
+        db.execute(
+            text("DELETE FROM recommended_hotels WHERE user_id = :uid"),
+            {"uid": current_user.user_id}
+        )
+        for hotel in results:
+            db.execute(
+                text("""
+                     INSERT INTO recommended_hotels (user_id, hotel_id, location)
+                     VALUES (:uid, :hid, :loc)
+                     """),
+                {
+                    "uid": current_user.user_id,
+                    "hid": hotel["hotel_id"],
+                    "loc": hotel["location"],
+                }
+            )
+        db.commit()
+    except Exception as e:
+        # Non-fatal — recommendations still returned even if staging write fails
+        db.rollback()
+        print(f"[hotel_routes] WARNING: could not write to recommended_hotels: {e}")
+
     return jsonify({
-        "personality_cluster":  cluster,
-        "locations_used":       saved_locations,
-        "count":                len(results),
-        "hotels":               results,
+        "personality_cluster": cluster,
+        "locations_used":      saved_locations,
+        "count":               len(results),
+        "hotels":              results,
     }), 200
 
 
@@ -185,25 +187,32 @@ def get_hotel_recommendations(current_user, db):
 @login_required
 def save_hotel(current_user, db):
     """
-    Save a hotel to the user's selected_hotels.
-    Body: { hotel_id, location, total_budget }
+    Save a hotel to selected_hotels with check-in/check-out dates and budget.
+    Body: { hotel_id, location, total_budget, check_in, check_out }
+    check_in / check_out are stored as strings e.g. "2025-08-01"
     """
     data         = request.get_json(silent=True) or {}
     hotel_id     = data.get("hotel_id")
     location     = data.get("location", "")
     total_budget = data.get("total_budget")
+    check_in     = data.get("check_in", "")
+    check_out    = data.get("check_out", "")
 
     if not hotel_id or total_budget is None:
         return jsonify({"detail": "hotel_id and total_budget are required"}), 422
 
     try:
+        # ON CONFLICT: if same user already saved same hotel, update it
         db.execute(
             text("""
-                 INSERT INTO selected_hotels (user_id, hotel_id, location, total_budget)
-                 VALUES (:uid, :hid, :loc, :budget)
+                 INSERT INTO selected_hotels
+                     (user_id, hotel_id, location, total_budget, check_in, check_out)
+                 VALUES (:uid, :hid, :loc, :budget, :ci, :co)
                      ON CONFLICT (user_id, hotel_id) DO UPDATE
                                                             SET total_budget = :budget,
                                                             location     = :loc,
+                                                            check_in     = :ci,
+                                                            check_out    = :co,
                                                             created_at   = CURRENT_TIMESTAMP
                  """),
             {
@@ -211,6 +220,8 @@ def save_hotel(current_user, db):
                 "hid":    hotel_id,
                 "loc":    location,
                 "budget": float(total_budget),
+                "ci":     check_in,
+                "co":     check_out,
             }
         )
         db.commit()
@@ -225,10 +236,11 @@ def save_hotel(current_user, db):
 @hotels_router.get("/hotels/saved")
 @login_required
 def get_saved_hotels(current_user, db):
-    """Returns all hotels the user has saved."""
+    """Returns all hotels the user has saved, including check-in/check-out dates."""
     rows = db.execute(
         text("""
-             SELECT sh.id, sh.hotel_id, h.name, sh.location, sh.total_budget, sh.created_at
+             SELECT sh.id, sh.hotel_id, h.name, sh.location,
+                    sh.total_budget, sh.check_in, sh.check_out, sh.created_at
              FROM selected_hotels sh
                       JOIN hotel h ON sh.hotel_id = h.hotel_id
              WHERE sh.user_id = :uid
@@ -245,7 +257,9 @@ def get_saved_hotels(current_user, db):
             "name":         r[2],
             "location":     r[3],
             "total_budget": float(r[4]) if r[4] else 0,
-            "saved_at":     r[5].isoformat() if r[5] else None,
+            "check_in":     r[5] or "",
+            "check_out":    r[6] or "",
+            "saved_at":     r[7].isoformat() if r[7] else None,
         })
 
     grand_total = sum(h["total_budget"] for h in saved)
@@ -260,21 +274,34 @@ def get_saved_hotels(current_user, db):
 # ── PUT /hotels/saved/<id> ────────────────────────────────────────────────────
 @hotels_router.put("/hotels/saved/<int:row_id>")
 @login_required
-def update_hotel_budget(current_user, db, row_id):
-    """Update the planned budget for a saved hotel."""
+def update_saved_hotel(current_user, db, row_id):
+    """Update budget and/or check-in/check-out dates for a saved hotel."""
     data = request.get_json(silent=True) or {}
-    new_budget = data.get("total_budget")
-    if new_budget is None:
-        return jsonify({"detail": "total_budget is required"}), 422
+
+    fields = []
+    params = {"rid": row_id, "uid": current_user.user_id}
+
+    if "total_budget" in data:
+        fields.append("total_budget = :budget")
+        params["budget"] = float(data["total_budget"])
+    if "check_in" in data:
+        fields.append("check_in = :ci")
+        params["ci"] = data["check_in"]
+    if "check_out" in data:
+        fields.append("check_out = :co")
+        params["co"] = data["check_out"]
+
+    if not fields:
+        return jsonify({"detail": "Nothing to update"}), 422
 
     try:
         result = db.execute(
-            text("""
-                 UPDATE selected_hotels
-                 SET total_budget = :budget
-                 WHERE id = :rid AND user_id = :uid
-                 """),
-            {"budget": float(new_budget), "rid": row_id, "uid": current_user.user_id}
+            text(f"""
+                UPDATE selected_hotels
+                SET {', '.join(fields)}
+                WHERE id = :rid AND user_id = :uid
+            """),
+            params
         )
         db.commit()
         if result.rowcount == 0:
@@ -283,7 +310,7 @@ def update_hotel_budget(current_user, db, row_id):
         db.rollback()
         return jsonify({"detail": str(e)}), 500
 
-    return jsonify({"message": "Budget updated"}), 200
+    return jsonify({"message": "Hotel updated"}), 200
 
 
 # ── DELETE /hotels/saved/<id> ─────────────────────────────────────────────────
@@ -293,10 +320,7 @@ def delete_saved_hotel(current_user, db, row_id):
     """Remove a hotel from the user's saved list."""
     try:
         result = db.execute(
-            text("""
-                 DELETE FROM selected_hotels
-                 WHERE id = :rid AND user_id = :uid
-                 """),
+            text("DELETE FROM selected_hotels WHERE id = :rid AND user_id = :uid"),
             {"rid": row_id, "uid": current_user.user_id}
         )
         db.commit()

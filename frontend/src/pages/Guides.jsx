@@ -1,0 +1,306 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import API from "../services/api";
+import Navbar from "../components/Navbar";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Guides.jsx  —  Guide recommender + booking, integrated into VibeLanka
+//
+// Replaces member 4b's RecommendPage.jsx.
+// Uses JWT (no manual user_id entry).
+// Endpoints:
+//   GET  /guides/recommend?language=X → AI recommended guides
+//   GET  /guides/booking              → check existing booking
+//   POST /guides/book                 → book a guide
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LANGUAGES = [
+    { key: "Sinhala", icon: "🌿" },
+    { key: "Tamil",   icon: "🌺" },
+    { key: "English", icon: "🌐" },
+    { key: "All",     icon: "✨" },
+];
+
+const TIER_LABEL = { Top: "⭐ Top Guide", Good: "✓ Good Match", Average: "Match" };
+
+function getVibeBadgeColor(vibe = "") {
+    if (vibe.includes("adventurous")) return "rgba(255,204,0,0.15)";
+    if (vibe.includes("calm"))        return "rgba(122,184,176,0.2)";
+    if (vibe.includes("cultural"))    return "rgba(90,74,130,0.15)";
+    if (vibe.includes("organized"))   return "rgba(45,74,71,0.15)";
+    return "rgba(255,255,255,0.12)";
+}
+
+function GuideCard({ guide, onBook, isBooking }) {
+    const matchPct = guide.confidence || guide.ocean_similarity || 0;
+    return (
+        <div style={{
+            background: "#4d8a82", border: "1.5px solid rgba(255,255,255,0.16)",
+            borderRadius: 14, overflow: "hidden",
+            boxShadow: "0 4px 20px rgba(29,58,54,0.15)", color: "#ffffff",
+            animation: "cardIn 0.35s ease both",
+            transition: "box-shadow 0.2s, transform 0.2s",
+        }}
+             onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 10px 30px rgba(29,58,54,0.25)"; }}
+             onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(29,58,54,0.15)"; }}
+        >
+            <div style={{ padding: 22 }}>
+                {/* Header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+                    <div>
+                        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 17, fontWeight: 400, color: "#fff", marginBottom: 4 }}>{guide.name}</div>
+                        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>📍 {guide.base_location}</div>
+                    </div>
+                    <span style={{ background: "rgba(255,255,255,0.15)", color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 8 }}>
+                        {TIER_LABEL[guide.tier_label] || "Match"}
+                    </span>
+                </div>
+
+                {/* Vibe badge */}
+                {guide.vibe_label && (
+                    <div style={{ marginBottom: 14 }}>
+                        <span style={{ background: getVibeBadgeColor(guide.vibe_label), color: "#fff", fontSize: 11, fontWeight: 500, padding: "3px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)", textTransform: "capitalize" }}>
+                            {guide.vibe_label}
+                        </span>
+                    </div>
+                )}
+
+                {/* Stats */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+                    {[
+                        { val: `⭐ ${guide.rating}`, label: "Rating" },
+                        { val: `LKR ${Number(guide.daily_rate).toLocaleString()}`, label: "Per Day" },
+                        { val: `${matchPct.toFixed(0)}%`, label: "Match", color: "#ffcc00" },
+                    ].map(({ val, label, color }) => (
+                        <div key={label} style={{ background: "rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: color || "#fff" }}>{val}</div>
+                            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{label}</div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Language + budget */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 18 }}>
+                    <span style={{ background: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.85)", fontSize: 11, fontWeight: 500, padding: "3px 10px", borderRadius: 8 }}>
+                        🗣 {guide.language_spoken}
+                    </span>
+                    {guide.estimated_budget > 0 && (
+                        <span style={{ background: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.85)", fontSize: 11, fontWeight: 500, padding: "3px 10px", borderRadius: 8 }}>
+                            💰 LKR {Number(guide.estimated_budget).toLocaleString()} total
+                        </span>
+                    )}
+                </div>
+
+                {/* Book button */}
+                <button onClick={() => onBook(guide)} disabled={isBooking}
+                        style={{ width: "100%", background: "#ffcc00", border: "none", borderRadius: 10, padding: "12px", fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 14, color: "#1a2e2b", cursor: isBooking ? "not-allowed" : "pointer", opacity: isBooking ? 0.5 : 1, transition: "background 0.2s" }}>
+                    {isBooking ? "Booking…" : "Book This Guide →"}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function Skeleton() {
+    return (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
+            {[...Array(3)].map((_, i) => (
+                <div key={i} style={{ background: "#4d8a82", borderRadius: 14, padding: 22, opacity: 0.5 }}>
+                    <div style={{ height: 17, width: "70%", background: "rgba(255,255,255,0.2)", borderRadius: 6, marginBottom: 10 }} />
+                    <div style={{ height: 11, width: "50%", background: "rgba(255,255,255,0.15)", borderRadius: 6, marginBottom: 20 }} />
+                    <div style={{ height: 56, background: "rgba(255,255,255,0.1)", borderRadius: 10, marginBottom: 14 }} />
+                    <div style={{ height: 40, background: "rgba(255,255,255,0.15)", borderRadius: 10 }} />
+                </div>
+            ))}
+        </div>
+    );
+}
+
+export default function Guides() {
+    const navigate = useNavigate();
+    const [language, setLanguage]         = useState("");
+    const [guides, setGuides]             = useState([]);
+    const [loading, setLoading]           = useState(false);
+    const [booking, setBooking]           = useState(false);
+    const [error, setError]               = useState("");
+    const [message, setMessage]           = useState("");
+    const [searched, setSearched]         = useState(false);
+    const [activeBooking, setActiveBooking] = useState(null);
+    const [checkingBooking, setChecking]  = useState(true);
+
+    // Check for existing booking on mount
+    useEffect(() => {
+        API.get("/guides/booking")
+            .then(res => setActiveBooking(res.data))
+            .catch(() => setActiveBooking(null))
+            .finally(() => setChecking(false));
+    }, []);
+
+    const handleSearch = async () => {
+        if (!language) { setError("Please select a language."); return; }
+        setError(""); setMessage(""); setGuides([]); setSearched(false); setLoading(true);
+        try {
+            const res = await API.get(`/guides/recommend?language=${encodeURIComponent(language)}`);
+            setGuides(res.data.guides || []);
+            setMessage(res.data.message || "");
+            setSearched(true);
+        } catch (err) {
+            setError(err?.response?.data?.detail || "Could not load guides.");
+            setSearched(true);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleBook = async (guide) => {
+        setBooking(true);
+        setError("");
+        try {
+            await API.post("/guides/book", {
+                guide_id:         guide.guide_id,
+                name:             guide.name,
+                language:         guide.language_spoken,
+                estimated_budget: guide.estimated_budget,
+            });
+            navigate("/guides/mybooking");
+        } catch (err) {
+            setError(err?.response?.data?.detail || "Booking failed.");
+            setBooking(false);
+        }
+    };
+
+    return (
+        <>
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap');
+                *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+                @keyframes cardIn { from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)} }
+                .gd-root { min-height: 100vh; background: #e8f0ef; font-family: 'DM Sans', sans-serif; }
+                .gd-hero { background: #2d4a47; padding: 40px 32px 32px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+                .gd-hero-inner { max-width: 960px; margin: 0 auto; }
+                .gd-eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(232,240,239,0.45); margin-bottom: 10px; }
+                .gd-title { font-family: 'Playfair Display', serif; font-size: 36px; font-weight: 500; color: #e8f0ef; letter-spacing: -0.3px; margin-bottom: 8px; }
+                .gd-sub { font-size: 13.5px; color: rgba(232,240,239,0.5); font-weight: 300; margin-bottom: 24px; }
+                .gd-lang-row { display: flex; gap: 10px; flex-wrap: wrap; }
+                .gd-lang-btn { padding: 10px 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); background: transparent; font-family: 'DM Sans',sans-serif; font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s; }
+                .gd-lang-btn:hover { border-color: rgba(255,255,255,0.5); color: #fff; }
+                .gd-lang-btn.active { background: #ffcc00; border-color: #ffcc00; color: #1a2e2b; }
+                .gd-content { max-width: 960px; margin: 0 auto; padding: 32px 24px 80px; }
+                .gd-error { display: flex; align-items: center; gap: 8px; background: rgba(139,26,26,0.18); border: 1px solid rgba(139,26,26,0.35); border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #ffb4b4; margin-bottom: 24px; }
+                .gd-banner { background: rgba(255,204,0,0.12); border: 1px solid rgba(255,204,0,0.35); border-radius: 14px; padding: 20px 24px; margin-bottom: 24px; display: flex; align-items: flex-start; gap: 14px; }
+                .gd-banner-title { font-size: 15px; font-weight: 700; color: #ffcc00; margin-bottom: 4px; }
+                .gd-banner-sub { font-size: 13px; color: rgba(255,255,255,0.6); background: #4d8a82; padding: 14px; border-radius: 10px; }
+                .gd-search-btn { display: block; margin: 24px auto 0; padding: 14px 40px; background: #ffcc00; border: none; border-radius: 10px; font-family: 'DM Sans',sans-serif; font-size: 15px; font-weight: 700; color: #1a2e2b; cursor: pointer; box-shadow: 0 4px 14px rgba(255,204,0,0.35); transition: background 0.2s, transform 0.15s; }
+                .gd-search-btn:hover:not(:disabled) { background: #e6b800; transform: translateY(-1px); }
+                .gd-search-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+                .gd-nudge { background: #4d8a82; border: 1px solid rgba(255,255,255,0.18); border-radius: 14px; padding: 36px; text-align: center; color: #fff; }
+                .gd-nudge h3 { font-family: 'Playfair Display',serif; font-size: 22px; margin-bottom: 10px; }
+                .gd-nudge p { font-size: 13.5px; color: rgba(255,255,255,0.6); margin-bottom: 22px; }
+                .gd-nudge-btn { display: inline-block; padding: 12px 24px; background: #ffcc00; border-radius: 10px; font-weight: 700; font-size: 13.5px; color: #1a2e2b; cursor: pointer; border: none; }
+                .gd-results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+                .gd-results-label { font-size: 13px; font-weight: 600; color: rgba(26,46,43,0.7); }
+                .gd-results-count { font-size: 12px; color: rgba(26,46,43,0.5); background: rgba(45,74,71,0.1); border-radius: 20px; padding: 3px 10px; }
+                .gd-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); gap: 16px; }
+                .gd-empty { text-align: center; padding: 56px 24px; color: rgba(255,255,255,0.5); background: #4d8a82; border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; }
+                @media(max-width:600px){ .gd-title{font-size:26px} .gd-content{padding:24px 16px 60px} }
+            `}</style>
+
+            <div className="gd-root">
+                <Navbar />
+
+                <div className="gd-hero">
+                    <div className="gd-hero-inner">
+                        <p className="gd-eyebrow">Step 4 — Guide Selection</p>
+                        <h1 className="gd-title">Find your perfect guide</h1>
+                        <p className="gd-sub">
+                            Our AI matches guides to your personality profile and chosen destinations.
+                            Select your preferred language to get started.
+                        </p>
+                        <div className="gd-lang-row">
+                            {LANGUAGES.map(({ key, icon }) => (
+                                <button key={key} className={`gd-lang-btn ${language === key ? "active" : ""}`}
+                                        onClick={() => { setLanguage(key); setError(""); }}>
+                                    {icon} {key}
+                                </button>
+                            ))}
+                        </div>
+                        <button className="gd-search-btn" onClick={handleSearch}
+                                disabled={loading || !language || checkingBooking}>
+                            {loading ? "Finding guides…" : "✨ Find My Guide"}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="gd-content">
+
+                    {/* Active booking warning */}
+                    {activeBooking && activeBooking.current_status === "confirmed" && (
+                        <div className="gd-banner">
+                            <span style={{ fontSize: 24 }}>🔒</span>
+                            <div>
+                                <div className="gd-banner-title">You already have an active booking!</div>
+                                <div className="gd-banner-sub">
+                                    You've booked <strong>{activeBooking.name}</strong> based in{" "}
+                                    <strong>{activeBooking.base_location}</strong>.
+                                    Cancel your current booking to select a different guide.
+                                    <br /><br />
+                                    <button style={{ background: "#ffcc00", border: "none", borderRadius: 8, padding: "8px 18px", fontWeight: 700, fontSize: 13, color: "#1a2e2b", cursor: "pointer" }}
+                                            onClick={() => navigate("/guides/mybooking")}>
+                                        Manage My Booking →
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {error && (
+                        error.includes("quiz") ? (
+                            <div className="gd-nudge">
+                                <h3>Complete your personality quiz first 🧭</h3>
+                                <p>We need your OCEAN profile to recommend the right guides for you.</p>
+                                <button className="gd-nudge-btn" onClick={() => navigate("/quiz")}>Take the Quiz →</button>
+                            </div>
+                        ) : (
+                            <div className="gd-error">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                {error}
+                            </div>
+                        )
+                    )}
+
+                    {loading && <Skeleton />}
+
+                    {!loading && searched && guides.length > 0 && (
+                        <>
+                            <div className="gd-results-header">
+                                <span className="gd-results-label">{message || "Top matches for you"}</span>
+                                <span className="gd-results-count">{guides.length} guide{guides.length !== 1 ? "s" : ""}</span>
+                            </div>
+                            <div className="gd-grid">
+                                {guides.map((guide, i) => (
+                                    <div key={guide.guide_id} style={{ position: "relative" }}>
+                                        {i === 0 && (
+                                            <div style={{ position: "absolute", top: -12, left: 16, zIndex: 10, background: "#2d4a47", color: "#ffcc00", fontSize: 10, fontWeight: 700, padding: "4px 12px", borderRadius: 8 }}>
+                                                ⭐ Best Match
+                                            </div>
+                                        )}
+                                        <GuideCard guide={guide} onBook={handleBook} isBooking={booking} />
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
+
+                    {!loading && searched && guides.length === 0 && !error && (
+                        <div className="gd-empty">
+                            <p style={{ fontSize: 40, marginBottom: 12 }}>😔</p>
+                            <p style={{ fontSize: 14, marginTop: 12 }}>
+                                No available guides found for the selected language. Try a different option.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </>
+    );
+}
