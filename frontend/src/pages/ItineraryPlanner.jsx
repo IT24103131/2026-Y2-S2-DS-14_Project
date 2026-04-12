@@ -188,17 +188,32 @@ function FeedbackForm({ itineraryId }) {
 }
 
 // ── Step 0: Trip Settings ─────────────────────────────────────────────────────
+/**
+ * PATCH for ItineraryPlanner.jsx — replace ONLY the TripSettings function.
+ *
+ * Find this line in ItineraryPlanner.jsx:
+ *   function TripSettings({ plannerData, onSubmit }) {
+ *
+ * Replace the ENTIRE TripSettings function (from that line to its closing })
+ * with the version below.
+ *
+ * WHAT CHANGES:
+ *   - No more budget slider (budget comes from saved hotel automatically)
+ *   - n_days pre-filled from quiz but user can still adjust if needed
+ *   - Shows hotel budget source clearly ("from your saved hotel")
+ *   - If no hotel saved yet, shows a fallback default ($500) with a note
+ */
+
 function TripSettings({ plannerData, onSubmit }) {
     const [days,          setDays]          = useState(plannerData.default_days || 5);
-    const [budget,        setBudget]        = useState(700);
     const [startingPoint, setStartingPoint] = useState("colombo");
 
-    const count    = plannerData.location_count || 0;
-    const tierLabel = budget / days < 80
-        ? "🎒 Budget (< $80/day)"
-        : budget / days < 200
-            ? "🏨 Mid-range ($80–200/day)"
-            : "✨ Luxury (> $200/day)";
+    const count = plannerData.location_count || 0;
+
+    // Budget comes from saved hotel — NOT from a slider
+    const budgetUsd    = plannerData.default_budget_usd || 500;
+    const budgetLkr    = plannerData.default_budget_lkr;
+    const budgetSource = plannerData.budget_source; // "hotel" or "default"
 
     if (count < 2) return (
         <div style={{ maxWidth:640, margin:"0 auto" }}>
@@ -206,7 +221,7 @@ function TripSettings({ plannerData, onSubmit }) {
                 <div style={{ fontSize:40, marginBottom:12 }}>📍</div>
                 <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:20, marginBottom:8 }}>No saved locations yet</h3>
                 <p style={{ fontSize:13.5, color:"rgba(255,255,255,0.6)", marginBottom:20 }}>
-                    You need at least 2 saved destinations from the Locations page before generating an itinerary.
+                    Save at least 2 destinations from the Locations page before generating an itinerary.
                 </p>
                 <a href="/locations" style={{ padding:"11px 24px", background:"#ffcc00", borderRadius:10, fontWeight:700, fontSize:13.5, color:"#1a2e2b", textDecoration:"none" }}>
                     Go to Locations →
@@ -221,6 +236,7 @@ function TripSettings({ plannerData, onSubmit }) {
                 <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, color:"#1a2e2b", marginBottom:6 }}>Trip Settings</h2>
                 <p style={{ fontSize:13.5, color:"rgba(26,46,43,0.55)" }}>
                     We'll build an optimised route using your <strong>{count} saved location{count!==1?"s":""}</strong>.
+                    Your quiz and hotel selections are used automatically.
                 </p>
                 {plannerData.missing_coords?.length > 0 && (
                     <div style={{ marginTop:10, background:"rgba(255,204,0,0.1)", border:"1px solid rgba(255,204,0,0.3)", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#1a2e2b" }}>
@@ -230,7 +246,7 @@ function TripSettings({ plannerData, onSubmit }) {
             </div>
 
             {/* Saved locations preview */}
-            <div style={{ background:"#4d8a82", border:"1px solid rgba(255,255,255,0.16)", borderRadius:12, padding:"14px 18px", marginBottom:20, color:"#fff" }}>
+            <div style={{ background:"#4d8a82", border:"1px solid rgba(255,255,255,0.16)", borderRadius:12, padding:"14px 18px", marginBottom:16, color:"#fff" }}>
                 <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.45)", marginBottom:10 }}>Your Saved Locations</div>
                 <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
                     {plannerData.locations.map((loc, i) => (
@@ -241,38 +257,78 @@ function TripSettings({ plannerData, onSubmit }) {
                 </div>
             </div>
 
-            {/* Settings sliders */}
-            <div style={{ background:"#4d8a82", border:"1px solid rgba(255,255,255,0.18)", borderRadius:14, padding:28, color:"#fff", marginBottom:20 }}>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, marginBottom:0 }}>
-                    <div>
-                        <label style={{ display:"block", fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.55)", marginBottom:10 }}>Number of Days</label>
-                        <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-                            <input type="range" min={1} max={14} value={days} onChange={e => setDays(Number(e.target.value))} style={{ flex:1, accentColor:"#ffcc00" }} />
-                            <span style={{ fontFamily:"'Playfair Display',serif", fontSize:22, color:"#ffcc00", minWidth:24 }}>{days}</span>
-                        </div>
+            {/* Settings */}
+            <div style={{ background:"#4d8a82", border:"1px solid rgba(255,255,255,0.18)", borderRadius:14, padding:28, color:"#fff", marginBottom:16 }}>
+
+                {/* Days — pre-filled from quiz, still adjustable */}
+                <div style={{ marginBottom:20 }}>
+                    <label style={{ display:"block", fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.55)", marginBottom:10 }}>
+                        Number of Days
+                        <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, fontSize:11, color:"rgba(255,255,255,0.35)", marginLeft:8 }}>
+                            (from your quiz — adjust if needed)
+                        </span>
+                    </label>
+                    <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                        <input type="range" min={1} max={14} value={days}
+                               onChange={e => setDays(Number(e.target.value))}
+                               style={{ flex:1, accentColor:"#ffcc00" }} />
+                        <span style={{ fontFamily:"'Playfair Display',serif", fontSize:22, color:"#ffcc00", minWidth:24 }}>{days}</span>
                     </div>
-                    <div>
-                        <label style={{ display:"block", fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.55)", marginBottom:10 }}>Budget (USD)</label>
-                        <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-                            <input type="range" min={100} max={5000} step={50} value={budget} onChange={e => setBudget(Number(e.target.value))} style={{ flex:1, accentColor:"#ffcc00" }} />
-                            <span style={{ fontFamily:"'Playfair Display',serif", fontSize:22, color:"#ffcc00", minWidth:50 }}>${budget}</span>
-                        </div>
+                </div>
+
+                {/* Budget — read from saved hotel, NOT a slider */}
+                <div style={{ marginBottom:20 }}>
+                    <label style={{ display:"block", fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.55)", marginBottom:10 }}>
+                        Budget
+                    </label>
+                    <div style={{
+                        background: budgetSource === "hotel" ? "rgba(52,211,153,0.1)" : "rgba(255,255,255,0.08)",
+                        border: budgetSource === "hotel" ? "1px solid rgba(52,211,153,0.3)" : "1px solid rgba(255,255,255,0.15)",
+                        borderRadius:10, padding:"14px 16px",
+                    }}>
+                        {budgetSource === "hotel" ? (
+                            <>
+                                <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:4 }}>
+                                    ✅ From your saved hotel booking
+                                </div>
+                                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:20, color:"#34d399" }}>
+                                    ${budgetUsd.toLocaleString()} USD
+                                </div>
+                                {budgetLkr && (
+                                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginTop:3 }}>
+                                        LKR {Number(budgetLkr).toLocaleString()} ÷ 320 ≈ ${budgetUsd}
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:4 }}>
+                                    ℹ️ Default estimate (save a hotel first for accurate budget)
+                                </div>
+                                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:20, color:"#ffcc00" }}>
+                                    ${budgetUsd.toLocaleString()} USD
+                                </div>
+                                <a href="/hotels" style={{ fontSize:11, color:"rgba(255,204,0,0.8)", marginTop:4, display:"inline-block" }}>
+                                    → Save a hotel to use your actual budget
+                                </a>
+                            </>
+                        )}
                     </div>
-                    <div>
-                        <label style={{ display:"block", fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.55)", marginBottom:10 }}>Starting Point</label>
-                        <select value={startingPoint} onChange={e => setStartingPoint(e.target.value)}
-                                style={{ width:"100%", background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:8, padding:"10px 14px", color:"#fff", fontFamily:"'DM Sans',sans-serif", fontSize:13.5, outline:"none" }}>
-                            {STARTING_POINTS.map(s => <option key={s.value} value={s.value} style={{ color:"#1a2e2b" }}>{s.label}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label style={{ display:"block", fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.55)", marginBottom:10 }}>Budget Tier</label>
-                        <div style={{ background:"rgba(255,204,0,0.1)", border:"1px solid rgba(255,204,0,0.3)", borderRadius:8, padding:"10px 14px", fontSize:13, color:"#ffcc00", fontWeight:600 }}>{tierLabel}</div>
-                    </div>
+                </div>
+
+                {/* Starting Point */}
+                <div>
+                    <label style={{ display:"block", fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.55)", marginBottom:10 }}>Starting Point</label>
+                    <select value={startingPoint} onChange={e => setStartingPoint(e.target.value)}
+                            style={{ width:"100%", background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:8, padding:"10px 14px", color:"#fff", fontFamily:"'DM Sans',sans-serif", fontSize:13.5, outline:"none" }}>
+                        <option value="colombo" style={{ color:"#1a2e2b" }}>Colombo (CMB Airport)</option>
+                        <option value="negombo" style={{ color:"#1a2e2b" }}>Negombo</option>
+                        <option value="kandy"   style={{ color:"#1a2e2b" }}>Kandy</option>
+                    </select>
                 </div>
             </div>
 
-            <button onClick={() => onSubmit({ days, budget, startingPoint })}
+            <button onClick={() => onSubmit({ days, budget: budgetUsd, startingPoint })}
                     style={{ width:"100%", padding:14, background:"#2d4a47", border:"none", borderRadius:10, fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:15, color:"#e8f0ef", cursor:"pointer", boxShadow:"0 4px 14px rgba(29,58,54,0.3)" }}>
                 ✨ Generate Optimised Itinerary →
             </button>

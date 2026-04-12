@@ -2,23 +2,15 @@
 itinerary_routes.py  —  backend/
 Member 5's route optimizer as a Flask Blueprint.
 
-KEY FIXES from previous version:
-  1. NO MORE location picking step — reads user's already-saved locations
-     from selected_locations table (member 2's data), NOT from a second picker.
-  2. Matches location names to locations_data.py entries by name to get lat/lng.
-     Falls back to a built-in coordinates dict for names not in locations_data.py.
-  3. itinerary_type is now mapped from user's personality_type → RL arm name
-     (e.g. "adventurous explorer" → "adventure") so rl_feedback_log is correct.
-  4. GET /itineraries/planner-data returns the user's saved locations already
-     enriched with coordinates — frontend just calls this and goes straight to
-     trip settings, no second location selection.
-
-Routes:
-  GET  /itineraries/planner-data  → user's saved locations with lat/lng + trip metadata
-  POST /itineraries/optimize      → run optimizer on saved locations, save to DB
+CHANGE in this version:
+  GET /itineraries/planner-data also returns:
+    default_budget_lkr  ← user's saved hotel total_budget (LKR)
+    default_budget_usd  ← converted to USD (÷320 approx) for the optimizer
+  This means ItineraryPlanner.jsx pre-fills budget_usd from the hotel the
+  user already saved — no more asking for budget a second time.
 """
 
-import json
+import json, re
 from flask import Blueprint, request, jsonify
 from sqlalchemy import text
 
@@ -29,7 +21,8 @@ from locations_data import SRI_LANKA_LOCATIONS, HOTELS, HOTEL_AREAS, GUIDES
 
 itinerary_router = Blueprint("itinerary_router", __name__)
 
-# ── Personality → RL itinerary_type mapping (same as routes.py) ──────────────
+LKR_TO_USD = 320   # approximate conversion rate — adjust if needed
+
 PERSONALITY_TO_ITINERARY_TYPE = {
     "adventurous explorer": "adventure",
     "balanced traveler":    "peaceful",
@@ -38,8 +31,7 @@ PERSONALITY_TO_ITINERARY_TYPE = {
     "calm & relaxed":       "beach",
 }
 
-# ── Fallback coordinates for locations NOT in locations_data.py ───────────────
-# These are destinations from mapping.py that member 5 doesn't have in his file.
+# ── Fallback coordinates ──────────────────────────────────────────────────────
 FALLBACK_COORDS = {
     "ahungalla":              {"lat": 6.3167, "lng": 80.0167},
     "ambalangoda":            {"lat": 6.2333, "lng": 80.0500},
@@ -85,116 +77,69 @@ FALLBACK_COORDS = {
     "nuwara eliya":           {"lat": 6.9497, "lng": 80.7891},
 }
 
-# Build a name→rich_object index from locations_data.py
 _LOCS_BY_NAME = {}
-for loc in SRI_LANKA_LOCATIONS:
-    _LOCS_BY_NAME[loc["name"].lower()] = loc
-    # also index partial matches (e.g. "kandy" matches "Kandy Temple of the Tooth")
-    first_word = loc["name"].split()[0].lower()
-    if first_word not in _LOCS_BY_NAME:
-        _LOCS_BY_NAME[first_word] = loc
+for _loc in SRI_LANKA_LOCATIONS:
+    _LOCS_BY_NAME[_loc["name"].lower()] = _loc
+    _fw = _loc["name"].split()[0].lower()
+    if _fw not in _LOCS_BY_NAME:
+        _LOCS_BY_NAME[_fw] = _loc
 
 
 def _enrich_location(name: str) -> dict | None:
-    """
-    Given a destination name from selected_locations (e.g. "Kandy", "Mirissa"),
-    returns a rich location dict with lat/lng suitable for the route optimizer.
-    Priority:
-      1. Exact name match in locations_data.py
-      2. Partial/first-word match in locations_data.py
-      3. Fallback coords dict
-      4. None (skip this location — no coordinates known)
-    """
     key = name.strip().lower()
-
-    # Exact match
     if key in _LOCS_BY_NAME:
         return _LOCS_BY_NAME[key]
-
-    # locations_data.py partial match
     for lkey, lobj in _LOCS_BY_NAME.items():
         if key in lkey or lkey in key:
             return lobj
-
-    # Fallback coords
-    if key in FALLBACK_COORDS:
-        coords = FALLBACK_COORDS[key]
-        return {
-            "id":                   key.replace(" ", "_"),
-            "name":                 name.strip(),
-            "lat":                  coords["lat"],
-            "lng":                  coords["lng"],
-            "category":             "cultural",
-            "region":               "unknown",
-            "visit_duration_hours": 2.0,
-            "entry_fee_usd":        0,
-            "best_time":            "morning",
-            "tags":                 [],
-            "description":          f"Destination: {name.strip()}",
-            "difficulty":           "easy",
-        }
-
-    # Try first word of the destination name against fallback dict
-    first = key.split()[0]
-    if first in FALLBACK_COORDS:
-        coords = FALLBACK_COORDS[first]
-        return {
-            "id":                   key.replace(" ", "_"),
-            "name":                 name.strip(),
-            "lat":                  coords["lat"],
-            "lng":                  coords["lng"],
-            "category":             "cultural",
-            "region":               "unknown",
-            "visit_duration_hours": 2.0,
-            "entry_fee_usd":        0,
-            "best_time":            "morning",
-            "tags":                 [],
-            "description":          f"Destination: {name.strip()}",
-            "difficulty":           "easy",
-        }
-
+    for fkey in [key, key.split()[0]]:
+        if fkey in FALLBACK_COORDS:
+            coords = FALLBACK_COORDS[fkey]
+            return {
+                "id": key.replace(" ", "_"), "name": name.strip(),
+                "lat": coords["lat"], "lng": coords["lng"],
+                "category": "cultural", "region": "unknown",
+                "visit_duration_hours": 2.0, "entry_fee_usd": 0,
+                "best_time": "morning", "tags": [],
+                "description": f"Destination: {name.strip()}", "difficulty": "easy",
+            }
     return None
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+def _parse_duration(raw) -> int:
+    if raw is None: return 5
+    try: return int(raw)
+    except (ValueError, TypeError):
+        nums = re.findall(r"\d+", str(raw))
+        return int(nums[0]) if nums else 5
+
 
 def _budget_to_tier(budget_usd: float, n_days: int) -> str:
     per_day = budget_usd / max(n_days, 1)
-    if per_day < 80:   return "budget"
-    if per_day < 200:  return "mid"
+    if per_day < 80:  return "budget"
+    if per_day < 200: return "mid"
     return "luxury"
 
-def _food_per_day(tier: str) -> float:
-    return {"budget": 15, "mid": 40, "luxury": 100}.get(tier, 40)
+def _food_per_day(tier): return {"budget":15,"mid":40,"luxury":100}.get(tier,40)
+def _estimate_accommodation(tier, n_days): return {"budget":18,"mid":100,"luxury":400}.get(tier,100)*n_days
 
-def _estimate_accommodation(tier: str, n_days: int) -> float:
-    return {"budget": 18, "mid": 100, "luxury": 400}.get(tier, 100) * n_days
-
-def _get_hotels_for_clusters(ordered_clusters: list, budget_tier: str) -> list:
-    hotels = HOTELS.get(budget_tier, HOTELS.get("mid", []))
-    if not hotels:
-        return []
+def _get_hotels_for_clusters(ordered_clusters, budget_tier):
+    hotels = HOTELS.get(budget_tier, HOTELS.get("mid",[]))
+    if not hotels: return []
     suggestions = []
     for cluster in ordered_clusters:
-        centroid_lat = cluster["centroid"]["lat"]
-        centroid_lng = cluster["centroid"]["lng"]
+        lat, lng = cluster["centroid"]["lat"], cluster["centroid"]["lng"]
         nearest_area, min_dist = None, float("inf")
         for area_id, area_coords in HOTEL_AREAS.items():
-            dist = haversine_distance(centroid_lat, centroid_lng, area_coords["lat"], area_coords["lng"])
-            if dist < min_dist:
-                min_dist, nearest_area = dist, area_id
-        matched = next((h for h in hotels if h.get("area") == nearest_area), hotels[0])
-        suggestions.append({
-            "day_number":           cluster["day_number"],
-            "nearest_area":         nearest_area,
-            "distance_to_hotel_km": round(min_dist, 1),
-            "hotel":                matched,
-        })
+            dist = haversine_distance(lat, lng, area_coords["lat"], area_coords["lng"])
+            if dist < min_dist: min_dist, nearest_area = dist, area_id
+        matched = next((h for h in hotels if h.get("area")==nearest_area), hotels[0])
+        suggestions.append({"day_number":cluster["day_number"],"nearest_area":nearest_area,"distance_to_hotel_km":round(min_dist,1),"hotel":matched})
     return suggestions
 
-def _get_relevant_guides(selected_locations: list) -> list:
-    visited_regions = set(l.get("region", "") for l in selected_locations)
-    relevant = [g for g in GUIDES if any(s in visited_regions for s in g.get("specialization", []))]
+def _get_relevant_guides(selected_locations):
+    visited_regions = set(l.get("region","") for l in selected_locations)
+    relevant = [g for g in GUIDES if any(s in visited_regions for s in g.get("specialization",[]))]
     return relevant or GUIDES[:2]
 
 
@@ -203,66 +148,59 @@ def _get_relevant_guides(selected_locations: list) -> list:
 @login_required
 def get_planner_data(current_user, db):
     """
-    Returns the user's already-saved locations (from member 2's selection)
-    enriched with lat/lng + rich metadata, ready for the optimizer.
-
-    Also returns quiz duration so the frontend can pre-fill n_days.
-    Frontend calls this once, then immediately shows trip settings.
-    No second location picking needed.
+    Returns the user's saved locations enriched with coordinates.
+    Also returns:
+      default_days       — from quiz_result.duration
+      default_budget_usd — from selected_hotels.total_budget ÷ LKR_TO_USD
+                           (so ItineraryPlanner pre-fills budget without asking again)
+      default_budget_lkr — raw LKR amount for display
     """
     # Read saved locations
     loc_rows = db.execute(text("""
-                               SELECT selected_destination FROM selected_locations
-                               WHERE user_id = :uid
-                               ORDER BY created_at DESC
+                               SELECT selected_destination FROM selected_locations WHERE user_id = :uid ORDER BY created_at DESC
                                """), {"uid": current_user.user_id}).fetchall()
 
     names = []
     for row in loc_rows:
-        if row[0]:
-            names.extend([p.strip() for p in row[0].split("|") if p.strip()])
+        if row[0]: names.extend([p.strip() for p in row[0].split("|") if p.strip()])
 
-    # Deduplicate while preserving order
-    seen = set()
-    unique_names = []
+    seen, unique_names = set(), []
     for n in names:
-        if n.lower() not in seen:
-            seen.add(n.lower())
-            unique_names.append(n)
+        if n.lower() not in seen: seen.add(n.lower()); unique_names.append(n)
 
-    # Enrich with coordinates
-    enriched = []
-    missing  = []
+    enriched, missing = [], []
     for name in unique_names:
         obj = _enrich_location(name)
-        if obj:
-            enriched.append(obj)
-        else:
-            missing.append(name)
+        if obj: enriched.append(obj)
+        else:   missing.append(name)
 
-    # Read quiz duration for default n_days
+    # Quiz duration → default days
     qr = db.execute(text("""
                          SELECT duration, personality_type FROM quiz_result
                          WHERE user_id = :uid ORDER BY result_id DESC LIMIT 1
                          """), {"uid": current_user.user_id}).fetchone()
 
-    import re
-    def parse_duration(raw):
-        if raw is None: return 5
-        try: return int(raw)
-        except (ValueError, TypeError):
-            nums = re.findall(r"\d+", str(raw))
-            return int(nums[0]) if nums else 5
-
-    default_days     = parse_duration(qr[0] if qr else None)
+    default_days     = _parse_duration(qr[0] if qr else None)
     personality_type = (qr[1] or "balanced traveler").strip().lower() if qr else "balanced traveler"
 
+    # ── NEW: read user's saved hotel budget to pre-fill budget_usd ───────────
+    hotel_row = db.execute(text("""
+                                SELECT sh.total_budget FROM selected_hotels sh
+                                WHERE sh.user_id = :uid ORDER BY sh.created_at DESC LIMIT 1
+                                """), {"uid": current_user.user_id}).fetchone()
+
+    default_budget_lkr = float(hotel_row[0]) if hotel_row and hotel_row[0] else None
+    default_budget_usd = round(default_budget_lkr / LKR_TO_USD) if default_budget_lkr else 500
+
     return jsonify({
-        "locations":        enriched,
-        "location_count":   len(enriched),
-        "missing_coords":   missing,          # names we couldn't map (for debug)
-        "default_days":     default_days,
-        "personality_type": personality_type,
+        "locations":           enriched,
+        "location_count":      len(enriched),
+        "missing_coords":      missing,
+        "default_days":        default_days,
+        "personality_type":    personality_type,
+        "default_budget_lkr":  default_budget_lkr,   # LKR total from saved hotel
+        "default_budget_usd":  default_budget_usd,   # USD equivalent for optimizer
+        "budget_source":       "hotel" if default_budget_lkr else "default",
     }), 200
 
 
@@ -271,54 +209,41 @@ def get_planner_data(current_user, db):
 @login_required
 def optimize_itinerary(current_user, db):
     """
-    Runs K-Means + TSP route optimization on the user's saved locations.
-    Saves result to itineraries table with the CORRECT itinerary_type for RL.
-
-    Body: { n_days, budget_usd, starting_point }
-    Locations are read from DB — NOT from the request body.
+    Runs K-Means + TSP on user's saved locations.
+    n_days and budget_usd come from request body (pre-filled by frontend from quiz/hotel).
     """
-    data = request.get_json(silent=True) or {}
-
+    data           = request.get_json(silent=True) or {}
     n_days         = int(data.get("n_days", 5))
     budget_usd     = float(data.get("budget_usd", 500))
     starting_point = str(data.get("starting_point", "colombo")).lower()
 
-    if n_days < 1:
-        return jsonify({"error": "n_days must be at least 1"}), 400
+    if n_days < 1: return jsonify({"error": "n_days must be at least 1"}), 400
 
-    # ── Read + enrich user's saved locations ─────────────────────────────────
+    # Read + enrich saved locations
     loc_rows = db.execute(text("""
                                SELECT selected_destination FROM selected_locations WHERE user_id = :uid
                                """), {"uid": current_user.user_id}).fetchall()
 
     names = []
     for row in loc_rows:
-        if row[0]:
-            names.extend([p.strip() for p in row[0].split("|") if p.strip()])
+        if row[0]: names.extend([p.strip() for p in row[0].split("|") if p.strip()])
 
-    # Deduplicate
     seen, unique_names = set(), []
     for n in names:
-        if n.lower() not in seen:
-            seen.add(n.lower())
-            unique_names.append(n)
+        if n.lower() not in seen: seen.add(n.lower()); unique_names.append(n)
 
     selected = [_enrich_location(n) for n in unique_names]
-    selected = [s for s in selected if s]   # drop None (no coords found)
+    selected = [s for s in selected if s]
 
     if len(selected) < 2:
         return jsonify({
-            "error": "Not enough locations with known coordinates. Please save at least 2 locations first.",
+            "error": "Not enough locations with coordinates. Save at least 2 locations first.",
             "tip":   "Go to the Locations page and save your destinations."
         }), 400
 
-    # ── Run optimizer ────────────────────────────────────────────────────────
-    result = optimize_route(selected, n_days=n_days, budget_usd=budget_usd,
-                            starting_point=starting_point)
-    if not result.get("success"):
-        return jsonify(result), 400
+    result = optimize_route(selected, n_days=n_days, budget_usd=budget_usd, starting_point=starting_point)
+    if not result.get("success"): return jsonify(result), 400
 
-    # ── Budget breakdown ─────────────────────────────────────────────────────
     budget_tier       = _budget_to_tier(budget_usd, n_days)
     accommodation_usd = _estimate_accommodation(budget_tier, n_days)
     total_entry_fees  = result["route_summary"]["total_entry_fees_usd"]
@@ -339,7 +264,6 @@ def optimize_itinerary(current_user, db):
     result["hotel_suggestions"] = _get_hotels_for_clusters(result["ordered_clusters"], budget_tier)
     result["guides"]            = _get_relevant_guides(selected)
 
-    # ── Get personality_type → correct itinerary_type for RL ─────────────────
     qr = db.execute(text("""
                          SELECT result_id, personality_type FROM quiz_result
                          WHERE user_id = :uid ORDER BY result_id DESC LIMIT 1
@@ -347,26 +271,15 @@ def optimize_itinerary(current_user, db):
 
     result_id        = qr[0] if qr else None
     personality_type = (qr[1] or "balanced traveler").strip().lower() if qr else "balanced traveler"
-    # Map to RL arm — NEVER use "optimized" as itinerary_type
     itinerary_type   = PERSONALITY_TO_ITINERARY_TYPE.get(personality_type, "peaceful")
 
-    title = f"{n_days}-Day Sri Lanka Trip ({len(selected)} stops)"
-
-    # ── Save to itineraries ───────────────────────────────────────────────────
+    title    = f"{n_days}-Day Sri Lanka Trip ({len(selected)} stops)"
     saved_id = None
     try:
         db.execute(text("""
-                        INSERT INTO itineraries
-                        (user_id, result_id, title, itinerary_plan, itinerary_type, created_at, updated_at)
-                        VALUES
-                            (:uid, :rid, :title, :plan, :itype, NOW(), NOW())
-                        """), {
-                       "uid":   current_user.user_id,
-                       "rid":   result_id,
-                       "title": title,
-                       "plan":  json.dumps(result),
-                       "itype": itinerary_type,        # ← correct RL arm now
-                   })
+                        INSERT INTO itineraries (user_id, result_id, title, itinerary_plan, itinerary_type, created_at, updated_at)
+                        VALUES (:uid, :rid, :title, :plan, :itype, NOW(), NOW())
+                        """), {"uid":current_user.user_id,"rid":result_id,"title":title,"plan":json.dumps(result),"itype":itinerary_type})
         db.commit()
 
         row = db.execute(text("""
@@ -375,45 +288,29 @@ def optimize_itinerary(current_user, db):
         saved_id = row[0] if row else None
         result["saved_itinerary_id"] = saved_id
 
-        # ── Write daily_plan + scheduled_activity + optimized_routes ─────────
         if saved_id:
-            stop_num   = 1
-            time_slots = ["09:00", "11:30", "14:00", "16:30", "18:00"]
+            stop_num, time_slots = 1, ["09:00","11:30","14:00","16:30","18:00"]
             for cluster in result.get("ordered_clusters", []):
                 day_num = cluster["day_number"]
-                db.execute(text("""
-                                INSERT INTO daily_plan (itinerary_id, day_number) VALUES (:iid, :dn)
-                                """), {"iid": saved_id, "dn": day_num})
+                db.execute(text("INSERT INTO daily_plan (itinerary_id, day_number) VALUES (:iid,:dn)"),
+                           {"iid":saved_id,"dn":day_num})
                 db.flush()
-
                 day_row = db.execute(text("""
-                                          SELECT day_id FROM daily_plan
-                                          WHERE itinerary_id = :iid AND day_number = :dn
-                                          ORDER BY day_id DESC LIMIT 1
-                                          """), {"iid": saved_id, "dn": day_num}).fetchone()
+                                          SELECT day_id FROM daily_plan WHERE itinerary_id=:iid AND day_number=:dn ORDER BY day_id DESC LIMIT 1
+                                          """), {"iid":saved_id,"dn":day_num}).fetchone()
                 day_id = day_row[0] if day_row else None
-
                 for i, loc in enumerate(cluster.get("locations", [])):
                     if day_id:
-                        db.execute(text("""
-                                        INSERT INTO scheduled_activity (day_id, location, start_time)
-                                        VALUES (:did, :loc, :st)
-                                        """), {
-                                       "did": day_id,
-                                       "loc": loc.get("name", ""),
-                                       "st":  time_slots[i] if i < len(time_slots) else "09:00",
-                                   })
-                    db.execute(text("""
-                                    INSERT INTO optimized_routes (itinerary_id, location, stop_order)
-                                    VALUES (:iid, :loc, :so)
-                                    """), {"iid": saved_id, "loc": loc.get("name", ""), "so": stop_num})
+                        db.execute(text("INSERT INTO scheduled_activity (day_id,location,start_time) VALUES (:did,:loc,:st)"),
+                                   {"did":day_id,"loc":loc.get("name",""),"st":time_slots[i] if i<len(time_slots) else "09:00"})
+                    db.execute(text("INSERT INTO optimized_routes (itinerary_id,location,stop_order) VALUES (:iid,:loc,:so)"),
+                               {"iid":saved_id,"loc":loc.get("name",""),"so":stop_num})
                     stop_num += 1
             db.commit()
-
     except Exception as e:
         db.rollback()
-        print(f"[itinerary_routes] DB save error: {e}")
+        print(f"[itinerary_routes] DB error: {e}")
         result["db_save_error"] = str(e)
 
-    result["itinerary_type"] = itinerary_type   # so frontend can show it
+    result["itinerary_type"] = itinerary_type
     return jsonify(result), 200
