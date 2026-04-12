@@ -53,8 +53,8 @@
       "beta": 1.0
     },
     "adventure": {
-      "alpha": 20.6,
-      "beta": 5.4
+      "alpha": 30.20000000000001,
+      "beta": 7.8000000000000025
     },
     "beach": {
       "alpha": 1.0,
@@ -71,8 +71,8 @@
       "beta": 1.0
     },
     "cultural": {
-      "alpha": 1.0,
-      "beta": 1.0
+      "alpha": 2.6,
+      "beta": 3.4000000000000004
     },
     "adventure": {
       "alpha": 1.0,
@@ -85,6 +85,10 @@
     "budget": {
       "alpha": 1.0,
       "beta": 1.0
+    },
+    "optimized": {
+      "alpha": 2.2,
+      "beta": 1.7999999999999998
     }
   },
   "friendly cultural": {
