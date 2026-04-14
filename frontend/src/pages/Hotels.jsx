@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
 import Navbar from "../components/Navbar";
+import NextStepBanner from "../components/NextStepBanner";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hotels.jsx — Hotel recommender
@@ -143,18 +144,18 @@ export default function Hotels() {
     const [locationsUsed,setLocsUsed]   = useState([]);
     const [saveTarget,   setSaveTarget]  = useState(null);
     const [quizDays,     setQuizDays]    = useState(3); // from quiz_result.duration
+    const [hasSaved, setHasSaved] = useState(false);
 
     // Load quiz days on mount so hotel budget can be auto-calculated
     useEffect(() => {
-        API.get("/personality")
-            .then(res => {
-                // duration stored in quiz_result — fetch it
-                API.get("/itineraries/planner-data")
-                    .then(r => setQuizDays(r.data.default_days || 3))
-                    .catch(() => {});
-            })
+        API.get("/itineraries/planner-data")
+            .then(r => setQuizDays(r.data.default_days || 3))
             .catch(() => {});
         loadRecommendations();
+        // Check if hotel already saved (for banner unlock)
+        API.get("/hotels/saved")
+            .then(res => { if (res.data?.saved_hotels?.length > 0) setHasSaved(true); })
+            .catch(() => {});
     }, []);
 
     const loadRecommendations = () => {
@@ -172,6 +173,11 @@ export default function Hotels() {
             .catch(() => setSaved([]))
             .finally(() => setLoading(false));
     };
+
+    // Add inside the existing useEffect (after loadRecommendations()):
+    API.get("/hotels/saved")
+        .then(res => { if (res.data?.saved_hotels?.length > 0) setHasSaved(true); })
+        .catch(() => {});
 
     const handleDelete = async (rowId) => {
         if (!window.confirm("Remove this hotel?")) return;
@@ -358,6 +364,15 @@ export default function Hotels() {
                         )
                     )}
                 </div>
+                <NextStepBanner
+                    step={2}
+                    done={hasSaved}
+                    nextPath="/guides"
+                    nextLabel="Find Your Guide →"
+                    nextSub="Step 3 of 4"
+                    locked={!hasSaved}
+                    lockedMsg="Save a hotel first"
+                />
             </div>
 
             {saveTarget && (
@@ -365,7 +380,7 @@ export default function Hotels() {
                     hotel={saveTarget}
                     quizDays={quizDays}
                     onClose={() => setSaveTarget(null)}
-                    onSaved={() => {}}
+                    onSaved={() => setHasSaved(true)}
                 />
             )}
         </>

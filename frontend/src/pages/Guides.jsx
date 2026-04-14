@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
 import Navbar from "../components/Navbar";
+import NextStepBanner from "../components/NextStepBanner";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Guides.jsx  —  Guide recommender + booking, integrated into VibeLanka
@@ -127,11 +128,16 @@ export default function Guides() {
     const [searched, setSearched]         = useState(false);
     const [activeBooking, setActiveBooking] = useState(null);
     const [checkingBooking, setChecking]  = useState(true);
+    const [hasBooked, setHasBooked] = useState(false);
 
+    // Check for existing booking on mount
     // Check for existing booking on mount
     useEffect(() => {
         API.get("/guides/booking")
-            .then(res => setActiveBooking(res.data))
+            .then(res => {
+                setActiveBooking(res.data);
+                if (res.data?.current_status === "confirmed") setHasBooked(true);
+            })
             .catch(() => setActiveBooking(null))
             .finally(() => setChecking(false));
     }, []);
@@ -162,10 +168,12 @@ export default function Guides() {
                 language:         guide.language_spoken,
                 estimated_budget: guide.estimated_budget,
             });
+            setHasBooked(true);          // ✅ only on SUCCESS
             navigate("/guides/mybooking");
         } catch (err) {
             setError(err?.response?.data?.detail || "Booking failed.");
             setBooking(false);
+            // ← no navigate, no setHasBooked on error
         }
     };
 
@@ -300,6 +308,15 @@ export default function Guides() {
                         </div>
                     )}
                 </div>
+                <NextStepBanner
+                    step={3}
+                    done={hasBooked}
+                    nextPath="/itineraries/plan"
+                    nextLabel="Create Your Itinerary →"
+                    nextSub="Step 4 of 4 — Final step!"
+                    locked={!hasBooked}
+                    lockedMsg="Book a guide first"
+                />
             </div>
         </>
     );

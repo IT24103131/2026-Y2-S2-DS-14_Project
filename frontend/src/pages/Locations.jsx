@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
 import Navbar from "../components/Navbar";
+import NextStepBanner from "../components/NextStepBanner";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Locations.jsx  –  Member 3 Location Suggestor, integrated into VibeLanka React
@@ -73,14 +74,16 @@ export default function Locations() {
     const [saving, setSaving]           = useState(false);
     const [saved, setSaved]             = useState(false);
     const [error, setError]             = useState("");
+    const [hasSaved, setHasSaved] = useState(false);
 
     // Load locations for the logged-in user's personality type
     useEffect(() => {
         setLoading(true);
-        // First restore any previously saved selection
+        // Restore saved selection AND check if already saved
         API.get("/locations/selection").then(res => {
             if (res.data.selected_destinations?.length) {
                 setSelected(new Set(res.data.selected_destinations));
+                setHasSaved(true);   // ← added here, replaces the second call
             }
         }).catch(() => {});
 
@@ -124,6 +127,7 @@ export default function Locations() {
                 selected_destinations: Array.from(selected),
             });
             setSaved(true);
+            setHasSaved(true);
         } catch (err) {
             setError(err?.response?.data?.detail || "Could not save. Please try again.");
         } finally {
@@ -348,6 +352,15 @@ export default function Locations() {
                         </div>
                     )}
                 </div>
+                <NextStepBanner
+                    step={1}
+                    done={hasSaved}
+                    nextPath="/hotels"
+                    nextLabel="Choose Your Hotel →"
+                    nextSub="Step 2 of 4"
+                    locked={!hasSaved}
+                    lockedMsg="Save your locations first"
+                />
             </div>
         </>
     );

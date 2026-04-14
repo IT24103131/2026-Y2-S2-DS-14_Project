@@ -6,6 +6,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import API from "../services/api";
 import Navbar from "../components/Navbar";
+import NextStepBanner from "../components/NextStepBanner";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ItineraryPlanner.jsx  —  Member 5's route optimizer, fully integrated.
@@ -684,6 +685,15 @@ export default function ItineraryPlanner() {
                         />
                     )}
                 </div>
+                <NextStepBanner
+                    step={4}
+                    done={!!result?.saved_itinerary_id}
+                    nextPath="/itineraries"
+                    nextLabel="View My Trips →"
+                    nextSub="See your full itinerary with map"
+                    locked={!result?.saved_itinerary_id}
+                    lockedMsg="Generate your itinerary first"
+                />
             </div>
         </>
     );
