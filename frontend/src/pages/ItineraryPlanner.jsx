@@ -391,35 +391,55 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
 
             {/* Map */}
             <div style={{ borderRadius:14, overflow:"hidden", border:"1px solid rgba(45,74,71,0.15)", marginBottom:24, boxShadow:"0 4px 20px rgba(29,58,54,0.12)" }}>
-                <MapContainer center={[7.8731, 80.7718]} zoom={7} style={{ height:380, width:"100%" }} scrollWheelZoom={false}>
-                    <TileLayer
+                <MapContainer
+                    bounds={[
+                        [5.9, 79.5],
+                        [9.9, 81.9]
+                    ]}
+                    maxBounds={[
+                        [5.5, 79.0],
+                        [10.2, 82.2]
+                    ]}
+                    maxBoundsViscosity={1.0}
+                    dragging={true}
+                    scrollWheelZoom={false}
+                    doubleClickZoom={false}
+                    zoomControl={true}
+                    style={{ height:800, width:"100%" }}
+                >                   <TileLayer
                         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                         attribution='&copy; <a href="https://carto.com/">CARTO</a>'
                     />
                     <FitBounds positions={allPositions} />
-                    {ordered_clusters.map((day, dayIdx) => {
-                        const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
-                        const pts   = day.locations.map(l => [l.lat, l.lng]);
-                        return (
-                            <div key={day.day_number}>
-                                {pts.length > 1 && <Polyline positions={pts} color={color} weight={2.5} opacity={0.75} dashArray="6,4" />}
-                                {day.locations.map((loc, li) => (
-                                    <Marker key={`${day.day_number}-${li}`} position={[loc.lat, loc.lng]} icon={makeIcon(li+1, color)}>
-                                        <Popup>
-                                            <div style={{ fontFamily:"'DM Sans',sans-serif", minWidth:150 }}>
-                                                <strong>{loc.name}</strong>
-                                                <div style={{ fontSize:11, color:"#64748b", margin:"4px 0" }}>Day {day.day_number} · Stop {li+1}</div>
-                                                <div style={{ fontSize:11 }}>
-                                                    🕐 {loc.visit_duration_hours}h &nbsp;
-                                                    {loc.entry_fee_usd > 0 ? `💵 $${loc.entry_fee_usd}` : "💚 Free"}
-                                                </div>
-                                            </div>
-                                        </Popup>
-                                    </Marker>
-                                ))}
-                            </div>
-                        );
-                    })}
+                    {(() => {
+                        let globalStop = 0;
+                        return ordered_clusters.map((day, dayIdx) => {
+                            const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
+                            const pts   = day.locations.map(l => [l.lat, l.lng]);
+                            return (
+                                <div key={day.day_number}>
+                                    {pts.length > 1 && <Polyline positions={pts} color={color} weight={2.5} opacity={0.75} dashArray="6,4" />}
+                                    {day.locations.map((loc, li) => {
+                                        globalStop++;
+                                        return (
+                                            <Marker key={`${day.day_number}-${li}`} position={[loc.lat, loc.lng]} icon={makeIcon(globalStop, color)}>
+                                                <Popup>
+                                                    <div style={{ fontFamily:"'DM Sans',sans-serif", minWidth:150 }}>
+                                                        <strong>{loc.name}</strong>
+                                                        <div style={{ fontSize:11, color:"#64748b", margin:"4px 0" }}>Day {day.day_number} · Stop {li+1}</div>
+                                                        <div style={{ fontSize:11 }}>
+                                                            🕐 {loc.visit_duration_hours}h &nbsp;
+                                                            {loc.entry_fee_usd > 0 ? `💵 $${loc.entry_fee_usd}` : "💚 Free"}
+                                                        </div>
+                                                    </div>
+                                                </Popup>
+                                            </Marker>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        });
+                    })()}
                 </MapContainer>
             </div>
 

@@ -59,33 +59,95 @@ function FitBounds({ positions }) {
 
 // ── Inline map for optimized trips ────────────────────────────────────────────
 function OptimizedMap({ clusters }) {
-    const allPositions = clusters.flatMap(day => day.locations.map(l => [l.lat, l.lng]));
+    const allPositions = clusters.flatMap(day =>
+        day.locations.map(l => [l.lat, l.lng])
+    );
+
     if (allPositions.length === 0) return null;
+
     return (
-        <div style={{ borderRadius:10, overflow:"hidden", border:"1px solid rgba(255,255,255,0.15)", marginBottom:16 }}>
-            <MapContainer center={[7.8731, 80.7718]} zoom={7} style={{ height:300, width:"100%" }} scrollWheelZoom={false}>
-                <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" attribution='&copy; <a href="https://carto.com/">CARTO</a>' />
+        <div style={{
+            borderRadius: 10,
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.15)",
+            marginBottom: 16
+        }}>
+            <MapContainer
+                bounds={[
+                    [5.9, 79.5],
+                    [9.9, 81.9]
+                ]}
+                maxBounds={[
+                    [5.5, 79.0],
+                    [10.2, 82.2]
+                ]}
+                maxBoundsViscosity={1.0}   // 👈 KEY FIX (stops bounce)
+                dragging={true}
+                scrollWheelZoom={false}    // optional (reduces chaos)
+                doubleClickZoom={false}    // optional
+                zoomControl={true}
+                style={{ height: 800, width: "100%" }}
+            >
+                <TileLayer
+                    url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                    attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+                />
+
                 <FitBounds positions={allPositions} />
-                {clusters.map((day, di) => {
-                    const color = DAY_COLORS[di % DAY_COLORS.length];
-                    const pts   = day.locations.map(l => [l.lat, l.lng]);
-                    return (
-                        <div key={day.day_number}>
-                            {pts.length > 1 && <Polyline positions={pts} color={color} weight={2.5} opacity={0.75} dashArray="6,4" />}
-                            {day.locations.map((loc, li) => (
-                                <Marker key={`${day.day_number}-${li}`} position={[loc.lat, loc.lng]} icon={makeIcon(li+1, color)}>
-                                    <Popup>
-                                        <div style={{ fontFamily:"'DM Sans',sans-serif", minWidth:140 }}>
-                                            <strong>{loc.name}</strong>
-                                            <div style={{ fontSize:11, color:"#64748b", margin:"3px 0" }}>Day {day.day_number} · Stop {li+1}</div>
-                                            <div style={{ fontSize:11 }}>🕐 {loc.visit_duration_hours}h &nbsp; {loc.entry_fee_usd > 0 ? `💵 $${loc.entry_fee_usd}` : "💚 Free"}</div>
-                                        </div>
-                                    </Popup>
-                                </Marker>
-                            ))}
-                        </div>
-                    );
-                })}
+
+                {(() => {
+                    let globalStop = 0;
+
+                    return clusters.map((day, di) => {
+                        const color = DAY_COLORS[di % DAY_COLORS.length];
+                        const pts = day.locations.map(l => [l.lat, l.lng]);
+
+                        return (
+                            <div key={day.day_number}>
+                                {/* Route line */}
+                                {pts.length > 1 && (
+                                    <Polyline positions={pts} color={color} />
+                                )}
+
+                                {/* Markers */}
+                                {day.locations.map((loc, li) => {
+                                    globalStop++;
+
+                                    return (
+                                        <Marker
+                                            key={`${day.day_number}-${li}`}
+                                            position={[loc.lat, loc.lng]}
+                                            icon={makeIcon(globalStop, color)}
+                                        >
+                                            <Popup>
+                                                <div style={{
+                                                    fontFamily: "'DM Sans',sans-serif",
+                                                    minWidth: 140
+                                                }}>
+                                                    <strong>{loc.name}</strong>
+                                                    <div style={{
+                                                        fontSize: 11,
+                                                        color: "#64748b",
+                                                        margin: "3px 0"
+                                                    }}>
+                                                        Day {day.day_number} · Stop {li + 1}
+                                                    </div>
+                                                    <div style={{ fontSize: 11 }}>
+                                                        🕐 {loc.visit_duration_hours}h &nbsp;
+                                                        {loc.entry_fee_usd > 0
+                                                            ? `💵 $${loc.entry_fee_usd}`
+                                                            : "💚 Free"}
+                                                    </div>
+                                                </div>
+                                            </Popup>
+                                        </Marker>
+                                    );
+                                })}
+                            </div>
+                        );
+                    });
+                })()}
+
             </MapContainer>
         </div>
     );
