@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css";
 import API from "../services/api";
 import Navbar from "../components/Navbar";
 import NextStepBanner from "../components/NextStepBanner";
+import { fmtLKR, lkrToUsd, fmtUSD } from "../utils/currency";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ItineraryPlanner.jsx  —  Member 5's route optimizer, fully integrated.
@@ -85,7 +86,8 @@ function SavedHotelCard({ hotel }) {
                 </div>
             )}
             <div style={{ fontWeight:700, color:"#ffcc00", fontSize:14 }}>
-                LKR {Number(hotel.total_budget).toLocaleString()}
+                {fmtLKR(hotel.total_budget)}
+                <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}> / ~{fmtUSD(lkrToUsd(hotel.total_budget))}</span>
                 <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)", fontWeight:400 }}> total budget</span>
             </div>
         </div>
@@ -113,7 +115,8 @@ function SavedGuideCard({ guide }) {
                 ⭐ {guide.rating} · LKR {Number(guide.daily_rate).toLocaleString()}/day
             </div>
             <div style={{ fontWeight:700, color:"#ffcc00", fontSize:14 }}>
-                LKR {Number(guide.estimated_budget).toLocaleString()}
+                {fmtLKR(guide.estimated_budget)}
+                <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}> / ~{fmtUSD(lkrToUsd(guide.estimated_budget))}</span>
                 <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)", fontWeight:400 }}> estimated total</span>
             </div>
         </div>

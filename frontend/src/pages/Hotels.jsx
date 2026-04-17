@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import API from "../services/api";
 import Navbar from "../components/Navbar";
 import NextStepBanner from "../components/NextStepBanner";
+import { fmtLKR, lkrToUsd, fmtUSD } from "../utils/currency";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hotels.jsx — Hotel recommender
@@ -12,10 +13,6 @@ import NextStepBanner from "../components/NextStepBanner";
 // User NO LONGER enters budget manually.
 // User still picks check-in and check-out dates.
 // ─────────────────────────────────────────────────────────────────────────────
-
-function formatLKR(v) {
-    return `LKR ${Number(v).toLocaleString("en-LK")}`;
-}
 
 function HotelImage({ hotelId, name }) {
     return (
@@ -31,8 +28,13 @@ function SaveModal({ hotel, quizDays, onClose, onSaved }) {
     const [loading,  setLoading]  = useState(false);
     const [error,    setError]    = useState("");
 
-    // Auto-calculate: budget_per_night × quiz days
-    const nights      = quizDays || 3;
+    // Calculate nights from actual selected dates, fall back to quizDays
+    const calcNights = (cin, cout) => {
+        if (!cin || !cout) return quizDays || 3;
+        const diff = (new Date(cout) - new Date(cin)) / (1000 * 60 * 60 * 24);
+        return diff > 0 ? diff : (quizDays || 3);
+    };
+    const nights      = calcNights(checkIn, checkOut);
     const totalBudget = Math.round((hotel.budget_per_night || 0) * nights);
 
     const handleSave = async () => {
@@ -91,7 +93,10 @@ function SaveModal({ hotel, quizDays, onClose, onSaved }) {
                     <div className="modal-calc-box">
                         <div className="modal-calc-label">💰 Calculated Total Budget</div>
                         <div className="modal-calc-formula">
-                            {formatLKR(hotel.budget_per_night)} × {nights} night{nights !== 1 ? "s" : ""} (from your quiz)
+                            {formatLKR(hotel.budget_per_night)} × {nights} night{nights !== 1 ? "s" : ""}
+                            {checkIn && checkOut
+                                ? " (from your selected dates)"
+                                : " (from your quiz — pick dates above)"}
                         </div>
                         <div className="modal-calc-total">{formatLKR(totalBudget)}</div>
                     </div>
@@ -173,11 +178,6 @@ export default function Hotels() {
             .catch(() => setSaved([]))
             .finally(() => setLoading(false));
     };
-
-    // Add inside the existing useEffect (after loadRecommendations()):
-    API.get("/hotels/saved")
-        .then(res => { if (res.data?.saved_hotels?.length > 0) setHasSaved(true); })
-        .catch(() => {});
 
     const handleDelete = async (rowId) => {
         if (!window.confirm("Remove this hotel?")) return;
@@ -312,12 +312,23 @@ export default function Hotels() {
                                                     <div className="ht-card-name">{hotel.name}</div>
                                                     <div className="ht-card-loc">📍 {hotel.location}</div>
                                                     <div className="ht-price-row">
-                                                        <span className="ht-price">{formatLKR(hotel.budget_per_night)}</span>
-                                                        <span className="ht-price-label">/ night</span>
+                                                        <span className="ht-price">{fmtLKR(hotel.budget_per_night)}</span>
+                                                        <span className="ht-price-label">/ night · ~{fmtUSD(lkrToUsd(hotel.budget_per_night))}</span>
                                                     </div>
                                                     {/* Auto-calculated total shown upfront */}
-                                                    <div className="ht-nights-calc">
-                                                        = {formatLKR(Math.round((hotel.budget_per_night||0) * quizDays))} for {quizDays} nights
+                                                    <div style={{
+                                                        background: "rgba(255,204,0,0.1)",
+                                                        border: "1px solid rgba(255,204,0,0.2)",
+                                                        borderRadius: 8,
+                                                        padding: "8px 12px",
+                                                        marginBottom: 14
+                                                    }}>
+                                                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.45)", marginBottom:2 }}>
+                                                            TOTAL FOR {quizDays} NIGHTS
+                                                        </div>
+                                                        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:17, color:"#ffcc00" }}>
+                                                            {fmtLKR(Math.round((hotel.budget_per_night||0) * quizDays))} (~{fmtUSD(lkrToUsd(Math.round((hotel.budget_per_night||0) * quizDays)))}) for {quizDays} nights
+                                                        </div>
                                                     </div>
                                                     <button className="ht-btn-save" onClick={() => setSaveTarget(hotel)}>
                                                         ❤️ Save + Pick Dates
@@ -353,8 +364,12 @@ export default function Hotels() {
                                                 </div>
                                             )}
                                             <div style={{ background:"rgba(255,204,0,0.12)", border:"1px solid rgba(255,204,0,0.25)", borderRadius:8, padding:"8px 12px", fontSize:13, fontWeight:700, color:"#ffcc00", marginBottom:12 }}>
-                                                {formatLKR(hotel.total_budget)} total
-                                                <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)", fontWeight:400 }}> ({quizDays} nights)</span>
+                                                {fmtLKR(hotel.total_budget)} / ~{fmtUSD(lkrToUsd(hotel.total_budget))} total
+                                                <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)", fontWeight:400 }}>
+                                                    {hotel.check_in && hotel.check_out
+                                                        ? ` (${Math.round((new Date(hotel.check_out) - new Date(hotel.check_in)) / 86400000)} nights)`
+                                                        : ` (${quizDays} nights)`}
+                                                </span>
                                             </div>
                                             <button className="ht-btn-del" onClick={() => handleDelete(hotel.id)}>🗑️ Remove</button>
                                         </div>

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import API from "../services/api";
 import Navbar from "../components/Navbar";
 import NextStepBanner from "../components/NextStepBanner";
+import { fmtLKR, lkrToUsd, fmtUSD } from "../utils/currency";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Guides.jsx  —  Guide recommender + booking, integrated into VibeLanka
@@ -70,7 +71,7 @@ function GuideCard({ guide, onBook, isBooking }) {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
                     {[
                         { val: `⭐ ${guide.rating}`, label: "Rating" },
-                        { val: `LKR ${Number(guide.daily_rate).toLocaleString()}`, label: "Per Day" },
+                        { val: fmtLKR(guide.daily_rate), label: "Per Day" },
                         { val: `${matchPct.toFixed(0)}%`, label: "Match", color: "#ffcc00" },
                     ].map(({ val, label, color }) => (
                         <div key={label} style={{ background: "rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
@@ -87,7 +88,7 @@ function GuideCard({ guide, onBook, isBooking }) {
                     </span>
                     {guide.estimated_budget > 0 && (
                         <span style={{ background: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.85)", fontSize: 11, fontWeight: 500, padding: "3px 10px", borderRadius: 8 }}>
-                            💰 LKR {Number(guide.estimated_budget).toLocaleString()} total
+                            💰 {fmtLKR(guide.estimated_budget)} / ~{fmtUSD(lkrToUsd(guide.estimated_budget))} total
                         </span>
                     )}
                 </div>

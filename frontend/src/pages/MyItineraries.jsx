@@ -5,6 +5,8 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import API from "../services/api";
 import Navbar from "../components/Navbar";
+import { fmtLKR, lkrToUsd, fmtUSD } from "../utils/currency";
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MyItineraries.jsx — My Trips page
@@ -533,7 +535,8 @@ function TripCard({ it, feedbacks, onRate, onEdit, onDelete, onRefreshFeedbacks 
                                         )}
                                     </div>
                                     <div style={{ textAlign:"right" }}>
-                                        <div style={{ fontWeight:700, color:"#ffcc00", fontSize:14 }}>LKR {Number(it.saved_hotel.total_budget).toLocaleString()}</div>
+                                        <div style={{ fontWeight:700, color:"#ffcc00", fontSize:14 }}>{fmtLKR(it.saved_hotel.total_budget)}</div>
+                                        <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>~{fmtUSD(lkrToUsd(it.saved_hotel.total_budget))}</div>
                                         <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>total budget</div>
                                     </div>
                                 </div>
@@ -551,7 +554,8 @@ function TripCard({ it, feedbacks, onRate, onEdit, onDelete, onRefreshFeedbacks 
                                         <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", marginTop:3 }}>⭐ {it.saved_guide.rating} · LKR {Number(it.saved_guide.daily_rate).toLocaleString()}/day</div>
                                     </div>
                                     <div style={{ textAlign:"right" }}>
-                                        <div style={{ fontWeight:700, color:"#ffcc00", fontSize:14 }}>LKR {Number(it.saved_guide.estimated_budget).toLocaleString()}</div>
+                                        <div style={{ fontWeight:700, color:"#ffcc00", fontSize:14 }}>{fmtLKR(it.saved_guide.estimated_budget)}</div>
+                                        <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>~{fmtUSD(lkrToUsd(it.saved_guide.estimated_budget))}</div>
                                         <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>estimated total</div>
                                     </div>
                                 </div>
