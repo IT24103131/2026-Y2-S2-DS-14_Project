@@ -23,21 +23,21 @@ export default function Navbar() {
         <>
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap');
-                .navbar{position:sticky;top:0;z-index:100;background:#2d4a47;border-bottom:1px solid rgba(255,255,255,0.08);padding:0 20px;height:60px;display:flex;align-items:center;justify-content:space-between;font-family:'DM Sans',sans-serif;box-shadow:0 2px 16px rgba(29,58,54,0.35);}
+                .navbar{position:sticky;top:0;z-index:100;background:#8C3322;border-bottom:1px solid rgba(255,255,255,0.1);padding:0 20px;height:60px;display:flex;align-items:center;justify-content:space-between;font-family:'DM Sans',sans-serif;box-shadow:0 4px 16px rgba(62,39,35,0.2);}
                 .navbar-brand{display:flex;align-items:center;gap:9px;text-decoration:none;flex-shrink:0;}
-                .navbar-logo-mark{width:30px;height:30px;background:linear-gradient(135deg,#4d8a82,#7ab8b0);border-radius:8px;display:flex;align-items:center;justify-content:center;}
-                .navbar-logo-mark svg{width:15px;height:15px;color:#ffffff;}
-                .navbar-brand-name{font-family:'Playfair Display',serif;font-size:17px;font-weight:600;color:#e8f0ef;}
+                .navbar-logo-mark{width:30px;height:30px;background:linear-gradient(135deg,#D4A373,#E8D5BC);border-radius:8px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+                .navbar-logo-mark svg{width:15px;height:15px;color:#8C3322;}
+                .navbar-brand-name{font-family:'Playfair Display',serif;font-size:17px;font-weight:600;color:#fff;}
                 .navbar-links{display:flex;align-items:center;gap:2px;overflow-x:auto;}
-                .nav-link{position:relative;padding:5px 9px;font-size:12px;font-weight:500;color:rgba(232,240,239,0.6);text-decoration:none;border-radius:7px;transition:color 0.2s,background 0.2s;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;}
-                .nav-link:hover{color:#e8f0ef;background:rgba(255,255,255,0.08);}
-                .nav-link-active{color:#e8f0ef !important;background:rgba(77,138,130,0.35) !important;}
-                .nav-link-active::after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:14px;height:2px;background:#7ab8b0;border-radius:2px;}
-                .nav-badge{width:6px;height:6px;background:#ffcc00;border-radius:50%;box-shadow:0 0 5px rgba(255,204,0,0.7);animation:pulse 2s infinite;}
+                .nav-link{position:relative;padding:5px 9px;font-size:12px;font-weight:500;color:rgba(255,255,255,0.65);text-decoration:none;border-radius:7px;transition:color 0.2s,background 0.2s;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;}
+                .nav-link:hover{color:#fff;background:rgba(255,255,255,0.08);}
+                .nav-link-active{color:#fff !important;background:rgba(255,255,255,0.1) !important;}
+                .nav-link-active::after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:14px;height:2px;background:#D4A373;border-radius:2px;}
+                .nav-badge{width:6px;height:6px;background:#D4A373;border-radius:50%;box-shadow:0 0 5px rgba(212,163,115,0.6);animation:pulse 2s infinite;}
                 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
-                .nav-divider{width:1px;height:16px;background:rgba(255,255,255,0.12);margin:0 4px;flex-shrink:0;}
-                .logout-btn{padding:6px 12px;background:rgba(139,26,26,0.15);border:1px solid rgba(139,26,26,0.4);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:500;color:rgba(255,180,180,0.85);cursor:pointer;display:flex;align-items:center;gap:5px;transition:background 0.2s;flex-shrink:0;}
-                .logout-btn:hover{background:rgba(139,26,26,0.3);color:#ffb4b4;}
+                .nav-divider{width:1px;height:16px;background:rgba(255,255,255,0.15);margin:0 4px;flex-shrink:0;}
+                .logout-btn{padding:6px 12px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.25);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:500;color:rgba(255,255,255,0.85);cursor:pointer;display:flex;align-items:center;gap:5px;transition:background 0.2s;flex-shrink:0;}
+                .logout-btn:hover{background:rgba(255,255,255,0.2);color:#fff;}
                 @media(max-width:750px){.navbar-brand-name{display:none}.nav-link{padding:4px 6px;font-size:11px}}
             `}</style>
             <nav className="navbar">

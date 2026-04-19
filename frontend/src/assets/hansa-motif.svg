@@ -1,0 +1,10 @@
+<svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Stylized traditional Sri Lankan Hansa (Swan) motif -->
+  <g fill="none" stroke="#3E2723" stroke-width="1.5">
+    <path d="M40,70 C40,50 60,30 80,30 C100,30 110,50 90,70" />
+    <path d="M160,70 C160,50 140,30 120,30 C100,30 90,50 110,70" />
+    <path d="M80,30 C70,20 60,20 50,30 C40,40 40,60 50,70" />
+    <path d="M120,30 C130,20 140,20 150,30 C160,40 160,60 150,70" />
+    <path d="M90,50 L110,50" stroke-dasharray="2,2" />
+  </g>
+</svg>

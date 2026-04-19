@@ -18,7 +18,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 # ── JWT helpers ────────────────────────────────────────────────────────────────
 
-def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes=30)) -> str:
+def create_access_token(data: dict, expires_delta: timedelta = timedelta(days=7)) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + expires_delta
     to_encode.update({"exp": expire})

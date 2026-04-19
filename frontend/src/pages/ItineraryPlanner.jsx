@@ -5,7 +5,7 @@ import { useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import API from "../services/api";
-import Navbar from "../components/Navbar";
+import Layout from "../components/Layout";
 import NextStepBanner from "../components/NextStepBanner";
 import { fmtLKR, lkrToUsd, fmtUSD } from "../utils/currency";
 
@@ -38,13 +38,27 @@ L.Icon.Default.mergeOptions({
     shadowUrl:     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-const DAY_COLORS    = ["#38bdf8","#818cf8","#34d399","#fb923c","#f87171","#a78bfa","#facc15","#60a5fa","#4ade80","#fb7185"];
+const DAY_COLORS    = ["#8C3322","#D4A373","#A95C42","#6B2E1E","#C68A57","#823A2A","#DEB887","#5E2012","#B5764F","#A8402D"];
 const STARTING_POINTS = [
     { value: "colombo", label: "Colombo (CMB Airport)" },
     { value: "negombo", label: "Negombo" },
     { value: "kandy",   label: "Kandy" },
 ];
 const STEPS = ["Trip Settings", "Your Itinerary"];
+
+function HansaWatermark() {
+    return (
+        <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, opacity: 0.07, pointerEvents: "none", overflow: "hidden", display: "flex", alignItems: "center" }}>
+            <svg viewBox="0 0 200 200" width="160" height="160" fill="white" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="100" cy="100" r="80" fill="none" stroke="white" strokeWidth="2" />
+                <circle cx="100" cy="100" r="60" fill="none" stroke="white" strokeWidth="1.5" />
+                <circle cx="100" cy="100" r="40" fill="none" stroke="white" strokeWidth="1" />
+                <path d="M100 20 L110 90 L180 100 L110 110 L100 180 L90 110 L20 100 L90 90 Z" fill="white" opacity="0.6" />
+                <circle cx="100" cy="100" r="12" fill="white" />
+            </svg>
+        </div>
+    );
+}
 
 // ── Leaflet helpers ───────────────────────────────────────────────────────────
 function makeIcon(number, color) {
@@ -146,16 +160,16 @@ function FeedbackForm({ itineraryId }) {
     };
 
     if (submitted) return (
-        <div style={{ background:"rgba(52,211,153,0.12)", border:"1px solid rgba(52,211,153,0.35)", borderRadius:12, padding:"20px 24px", textAlign:"center", color:"#fff" }}>
+        <div style={{ background:"#FDF5EE", border:"1px solid #D4A373", borderRadius:12, padding:"20px 24px", textAlign:"center", color:"#8C3322" }}>
             <div style={{ fontSize:32, marginBottom:8 }}>🎉</div>
             <div style={{ fontWeight:600, marginBottom:4 }}>Thanks for your feedback!</div>
-            <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)" }}>Your rating helps improve future recommendations.</div>
+            <div style={{ fontSize:12, color:"rgba(140,51,34,0.7)" }}>Your rating helps improve future recommendations.</div>
         </div>
     );
 
     return (
-        <div style={{ background:"#4d8a82", border:"1px solid rgba(255,255,255,0.18)", borderRadius:12, padding:24, color:"#fff" }}>
-            <div style={{ fontWeight:700, fontSize:14, marginBottom:16 }}>⭐ Rate This Itinerary</div>
+        <div style={{ background:"#FFFFFF", border:"1px solid #E8D5BC", borderRadius:12, padding:24, color:"#3E2723", boxShadow:"0 4px 14px rgba(62,39,35,0.06)" }}>
+            <div style={{ fontWeight:700, fontSize:14, marginBottom:16, color:"#8C3322" }}>⭐ Rate This Itinerary</div>
 
             {/* Stars */}
             <div style={{ display:"flex", gap:8, marginBottom:16 }}>
@@ -166,7 +180,7 @@ function FeedbackForm({ itineraryId }) {
                             onClick={() => setRating(n)}
                             style={{ background:"none", border:"none", cursor:"pointer", padding:0 }}>
                         <svg width="32" height="32" viewBox="0 0 24 24"
-                             style={{ fill: n<=(hovered||rating) ? "#ffcc00" : "rgba(255,255,255,0.2)", filter: n<=(hovered||rating) ? "drop-shadow(0 0 4px rgba(255,204,0,0.5))" : "none", transition:"fill 0.15s" }}>
+                             style={{ fill: n<=(hovered||rating) ? "#D4A373" : "rgba(62,39,35,0.15)", filter: n<=(hovered||rating) ? "drop-shadow(0 0 4px rgba(212,163,115,0.5))" : "none", transition:"fill 0.15s" }}>
                             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                         </svg>
                     </button>
@@ -178,13 +192,13 @@ function FeedbackForm({ itineraryId }) {
                 placeholder="What did you love? Any suggestions? (optional)"
                 value={comment}
                 onChange={e => setComment(e.target.value)}
-                style={{ width:"100%", background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:8, padding:"10px 14px", color:"#fff", fontFamily:"'DM Sans',sans-serif", fontSize:13, outline:"none", resize:"vertical", minHeight:80, marginBottom:14, boxSizing:"border-box" }}
+                style={{ width:"100%", background:"#F9F6F0", border:"1px solid #E8D5BC", borderRadius:8, padding:"10px 14px", color:"#3E2723", fontFamily:"'DM Sans',sans-serif", fontSize:13, outline:"none", resize:"vertical", minHeight:80, marginBottom:14, boxSizing:"border-box" }}
             />
 
-            {error && <div style={{ color:"#ffb4b4", fontSize:12, marginBottom:12 }}>{error}</div>}
+            {error && <div style={{ color:"#8C3322", fontSize:12, marginBottom:12 }}>{error}</div>}
 
             <button onClick={handleSubmit} disabled={loading || !rating}
-                    style={{ width:"100%", padding:"12px", background: rating ? "#ffcc00" : "rgba(255,255,255,0.15)", border:"none", borderRadius:10, fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:14, color: rating ? "#1a2e2b" : "rgba(255,255,255,0.4)", cursor: rating ? "pointer" : "not-allowed", transition:"background 0.2s" }}>
+                    style={{ width:"100%", padding:"12px", background: rating ? "#8C3322" : "#F9F6F0", border: rating ? "none" : "1px solid #E8D5BC", borderRadius:10, fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:14, color: rating ? "#fff" : "rgba(62,39,35,0.4)", cursor: rating ? "pointer" : "not-allowed", transition:"background 0.2s" }}>
                 {loading ? "Submitting…" : "Submit Review"}
             </button>
         </div>
@@ -209,25 +223,23 @@ function FeedbackForm({ itineraryId }) {
  */
 
 function TripSettings({ plannerData, onSubmit }) {
-    const [days,          setDays]          = useState(plannerData.default_days || 5);
     const [startingPoint, setStartingPoint] = useState("colombo");
 
-    const count = plannerData.location_count || 0;
-
-    // Budget comes from saved hotel — NOT from a slider
-    const budgetUsd    = plannerData.default_budget_usd || 500;
-    const budgetLkr    = plannerData.default_budget_lkr;
-    const budgetSource = plannerData.budget_source; // "hotel" or "default"
+    const count      = plannerData.location_count || 0;
+    const days       = plannerData.default_days || 5;
+    const budgetUsd  = plannerData.default_budget_usd || 500;
+    const budgetLkr  = plannerData.default_budget_lkr;
+    const budgetSource = plannerData.budget_source;
 
     if (count < 2) return (
         <div style={{ maxWidth:640, margin:"0 auto" }}>
-            <div style={{ background:"#4d8a82", border:"1px solid rgba(255,255,255,0.18)", borderRadius:14, padding:32, color:"#fff", textAlign:"center" }}>
+            <div style={{ background:"#FFFFFF", border:"1px solid #E8D5BC", borderRadius:14, padding:32, color:"#3E2723", textAlign:"center", boxShadow:"0 4px 14px rgba(62,39,35,0.06)" }}>
                 <div style={{ fontSize:40, marginBottom:12 }}>📍</div>
                 <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:20, marginBottom:8 }}>No saved locations yet</h3>
-                <p style={{ fontSize:13.5, color:"rgba(255,255,255,0.6)", marginBottom:20 }}>
+                <p style={{ fontSize:13.5, color:"rgba(62,39,35,0.6)", marginBottom:20 }}>
                     Save at least 2 destinations from the Locations page before generating an itinerary.
                 </p>
-                <a href="/locations" style={{ padding:"11px 24px", background:"#ffcc00", borderRadius:10, fontWeight:700, fontSize:13.5, color:"#1a2e2b", textDecoration:"none" }}>
+                <a href="/locations" style={{ padding:"11px 24px", background:"#8C3322", borderRadius:10, fontWeight:700, fontSize:13.5, color:"#fff", textDecoration:"none", display:"inline-block" }}>
                     Go to Locations →
                 </a>
             </div>
@@ -237,82 +249,82 @@ function TripSettings({ plannerData, onSubmit }) {
     return (
         <div style={{ maxWidth:640, margin:"0 auto" }}>
             <div style={{ marginBottom:24 }}>
-                <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, color:"#1a2e2b", marginBottom:6 }}>Trip Settings</h2>
-                <p style={{ fontSize:13.5, color:"rgba(26,46,43,0.55)" }}>
+                <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, color:"#3E2723", marginBottom:6 }}>Trip Settings</h2>
+                <p style={{ fontSize:13.5, color:"rgba(62,39,35,0.6)" }}>
                     We'll build an optimised route using your <strong>{count} saved location{count!==1?"s":""}</strong>.
-                    Your quiz and hotel selections are used automatically.
+                    All settings are pulled from your quiz and hotel booking automatically.
                 </p>
                 {plannerData.missing_coords?.length > 0 && (
-                    <div style={{ marginTop:10, background:"rgba(255,204,0,0.1)", border:"1px solid rgba(255,204,0,0.3)", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#1a2e2b" }}>
+                    <div style={{ marginTop:10, background:"rgba(212,163,115,0.15)", border:"1px solid #D4A373", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#8C3322" }}>
                         ⚠️ No coordinates found for: <strong>{plannerData.missing_coords.join(", ")}</strong> — these will be skipped.
                     </div>
                 )}
             </div>
 
             {/* Saved locations preview */}
-            <div style={{ background:"#4d8a82", border:"1px solid rgba(255,255,255,0.16)", borderRadius:12, padding:"14px 18px", marginBottom:16, color:"#fff" }}>
-                <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.45)", marginBottom:10 }}>Your Saved Locations</div>
+            <div style={{ background:"#FFFFFF", border:"1px solid #E8D5BC", borderRadius:12, padding:"14px 18px", marginBottom:16, color:"#3E2723", boxShadow:"0 2px 8px rgba(62,39,35,0.04)" }}>
+                <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(62,39,35,0.45)", marginBottom:10 }}>Your Saved Locations</div>
                 <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
                     {plannerData.locations.map((loc, i) => (
-                        <span key={i} style={{ background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.18)", borderRadius:6, padding:"4px 10px", fontSize:12, color:"#fff" }}>
+                        <span key={i} style={{ background:"#F9F6F0", border:"1px solid #E8D5BC", borderRadius:6, padding:"4px 10px", fontSize:12, color:"#3E2723" }}>
                             📍 {loc.name}
                         </span>
                     ))}
                 </div>
             </div>
 
-            {/* Settings */}
-            <div style={{ background:"#4d8a82", border:"1px solid rgba(255,255,255,0.18)", borderRadius:14, padding:28, color:"#fff", marginBottom:16 }}>
+            {/* Auto-filled settings summary */}
+            <div style={{ background:"#FFFFFF", border:"1px solid #E8D5BC", borderRadius:14, padding:28, color:"#3E2723", marginBottom:16, boxShadow:"0 4px 16px rgba(62,39,35,0.06)" }}>
 
-                {/* Days — pre-filled from quiz, still adjustable */}
+                {/* Trip duration — from quiz, read-only */}
                 <div style={{ marginBottom:20 }}>
-                    <label style={{ display:"block", fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.55)", marginBottom:10 }}>
-                        Number of Days
-                        <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, fontSize:11, color:"rgba(255,255,255,0.35)", marginLeft:8 }}>
-                            (from your quiz — adjust if needed)
-                        </span>
-                    </label>
-                    <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-                        <input type="range" min={1} max={14} value={days}
-                               onChange={e => setDays(Number(e.target.value))}
-                               style={{ flex:1, accentColor:"#ffcc00" }} />
-                        <span style={{ fontFamily:"'Playfair Display',serif", fontSize:22, color:"#ffcc00", minWidth:24 }}>{days}</span>
+                    <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(62,39,35,0.55)", marginBottom:10 }}>
+                        Trip Duration
+                    </div>
+                    <div style={{ background:"#F9F6F0", border:"1px solid #E8D5BC", borderRadius:10, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                        <div>
+                            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:22, color:"#8C3322" }}>{days} days</div>
+                            <div style={{ fontSize:11, color:"rgba(62,39,35,0.5)", marginTop:3 }}>
+                                Based on your quiz preference
+                            </div>
+                        </div>
+                        <div style={{ fontSize:28 }}>🗓️</div>
                     </div>
                 </div>
 
-                {/* Budget — read from saved hotel, NOT a slider */}
+                {/* Budget — from saved hotel */}
                 <div style={{ marginBottom:20 }}>
-                    <label style={{ display:"block", fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.55)", marginBottom:10 }}>
+                    <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(62,39,35,0.55)", marginBottom:10 }}>
                         Budget
-                    </label>
+                    </div>
                     <div style={{
-                        background: budgetSource === "hotel" ? "rgba(52,211,153,0.1)" : "rgba(255,255,255,0.08)",
-                        border: budgetSource === "hotel" ? "1px solid rgba(52,211,153,0.3)" : "1px solid rgba(255,255,255,0.15)",
+                        background: budgetSource === "hotel" ? "rgba(212,163,115,0.15)" : "#F9F6F0",
+                        border: budgetSource === "hotel" ? "1px solid #D4A373" : "1px solid #E8D5BC",
                         borderRadius:10, padding:"14px 16px",
                     }}>
                         {budgetSource === "hotel" ? (
                             <>
-                                <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:4 }}>
+                                <div style={{ fontSize:11, color:"rgba(62,39,35,0.6)", marginBottom:4 }}>
                                     ✅ From your saved hotel booking
                                 </div>
-                                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:20, color:"#34d399" }}>
+                                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:20, color:"#8C3322" }}>
                                     ${budgetUsd.toLocaleString()} USD
                                 </div>
                                 {budgetLkr && (
-                                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginTop:3 }}>
+                                    <div style={{ fontSize:11, color:"rgba(62,39,35,0.5)", marginTop:3 }}>
                                         LKR {Number(budgetLkr).toLocaleString()} ÷ 320 ≈ ${budgetUsd}
                                     </div>
                                 )}
                             </>
                         ) : (
                             <>
-                                <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:4 }}>
-                                    ℹ️ Default estimate (save a hotel first for accurate budget)
+                                <div style={{ fontSize:11, color:"rgba(62,39,35,0.6)", marginBottom:4 }}>
+                                    ℹ️ Default estimate — save a hotel for accurate budget
                                 </div>
-                                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:20, color:"#ffcc00" }}>
+                                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:20, color:"#D4A373" }}>
                                     ${budgetUsd.toLocaleString()} USD
                                 </div>
-                                <a href="/hotels" style={{ fontSize:11, color:"rgba(255,204,0,0.8)", marginTop:4, display:"inline-block" }}>
+                                <a href="/hotels" style={{ fontSize:11, color:"#8C3322", marginTop:4, display:"inline-block" }}>
                                     → Save a hotel to use your actual budget
                                 </a>
                             </>
@@ -320,20 +332,20 @@ function TripSettings({ plannerData, onSubmit }) {
                     </div>
                 </div>
 
-                {/* Starting Point */}
+                {/* Starting Point — only user-adjustable field */}
                 <div>
-                    <label style={{ display:"block", fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.55)", marginBottom:10 }}>Starting Point</label>
+                    <label style={{ display:"block", fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(62,39,35,0.55)", marginBottom:10 }}>Starting Point</label>
                     <select value={startingPoint} onChange={e => setStartingPoint(e.target.value)}
-                            style={{ width:"100%", background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:8, padding:"10px 14px", color:"#fff", fontFamily:"'DM Sans',sans-serif", fontSize:13.5, outline:"none" }}>
-                        <option value="colombo" style={{ color:"#1a2e2b" }}>Colombo (CMB Airport)</option>
-                        <option value="negombo" style={{ color:"#1a2e2b" }}>Negombo</option>
-                        <option value="kandy"   style={{ color:"#1a2e2b" }}>Kandy</option>
+                            style={{ width:"100%", background:"#F9F6F0", border:"1px solid #E8D5BC", borderRadius:8, padding:"10px 14px", color:"#3E2723", fontFamily:"'DM Sans',sans-serif", fontSize:13.5, outline:"none" }}>
+                        <option value="colombo" style={{ color:"#3E2723" }}>Colombo (CMB Airport)</option>
+                        <option value="negombo" style={{ color:"#3E2723" }}>Negombo</option>
+                        <option value="kandy"   style={{ color:"#3E2723" }}>Kandy</option>
                     </select>
                 </div>
             </div>
 
             <button onClick={() => onSubmit({ days, budget: budgetUsd, startingPoint })}
-                    style={{ width:"100%", padding:14, background:"#2d4a47", border:"none", borderRadius:10, fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:15, color:"#e8f0ef", cursor:"pointer", boxShadow:"0 4px 14px rgba(29,58,54,0.3)" }}>
+                    style={{ width:"100%", padding:14, background:"#8C3322", border:"none", borderRadius:10, fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:15, color:"#fff", cursor:"pointer", boxShadow:"0 4px 14px rgba(140,51,34,0.3)" }}>
                 ✨ Generate Optimised Itinerary →
             </button>
         </div>
@@ -372,18 +384,18 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
             {/* Header */}
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:24 }}>
                 <div>
-                    <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, color:"#1a2e2b", marginBottom:4 }}>🎉 Your Optimised Itinerary</h2>
-                    <p style={{ fontSize:13.5, color:"rgba(26,46,43,0.5)" }}>
+                    <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, color:"#3E2723", marginBottom:4 }}>🎉 Your Optimised Itinerary</h2>
+                    <p style={{ fontSize:13.5, color:"rgba(62,39,35,0.6)" }}>
                         {n_days}-day Sri Lanka trip · Starting from {route_summary?.starting_point}
                     </p>
                 </div>
                 <div style={{ display:"flex", gap:10 }}>
                     <button onClick={onBack}
-                            style={{ padding:"9px 16px", border:"1px solid rgba(45,74,71,0.3)", borderRadius:10, background:"transparent", fontFamily:"'DM Sans',sans-serif", fontWeight:600, fontSize:12.5, color:"rgba(26,46,43,0.7)", cursor:"pointer" }}>
+                            style={{ padding:"9px 16px", border:"1px solid #E8D5BC", borderRadius:10, background:"#fff", fontFamily:"'DM Sans',sans-serif", fontWeight:600, fontSize:12.5, color:"rgba(62,39,35,0.7)", cursor:"pointer" }}>
                         ← Edit
                     </button>
                     <button onClick={onNewTrip}
-                            style={{ padding:"9px 16px", border:"none", borderRadius:10, background:"#2d4a47", fontFamily:"'DM Sans',sans-serif", fontWeight:600, fontSize:12.5, color:"#e8f0ef", cursor:"pointer" }}>
+                            style={{ padding:"9px 16px", border:"none", borderRadius:10, background:"#8C3322", fontFamily:"'DM Sans',sans-serif", fontWeight:600, fontSize:12.5, color:"#fff", cursor:"pointer" }}>
                         New Trip
                     </button>
                 </div>
@@ -452,46 +464,46 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
                         const isOpen = openDay === day.day_number;
                         const color  = DAY_COLORS[(day.day_number-1) % DAY_COLORS.length];
                         return (
-                            <div key={day.day_number} style={{ background:"#4d8a82", border:"1px solid rgba(255,255,255,0.16)", borderRadius:12, marginBottom:12, overflow:"hidden", color:"#fff" }}>
+                            <div key={day.day_number} style={{ background:"#FFFFFF", border:"1px solid #E8D5BC", borderRadius:12, marginBottom:12, overflow:"hidden", color:"#3E2723", boxShadow:"0 2px 8px rgba(62,39,35,0.04)" }}>
                                 <div onClick={() => setOpenDay(isOpen ? null : day.day_number)}
-                                     style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", cursor:"pointer" }}>
+                                     style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", cursor:"pointer", background: isOpen ? "#FDF5EE" : "transparent" }}>
                                     <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                                        <span style={{ background:"#2d4a47", borderRadius:8, padding:"3px 12px", fontSize:11, fontWeight:700, color:"#ffcc00" }}>Day {day.day_number}</span>
+                                        <span style={{ background:"#8C3322", borderRadius:8, padding:"3px 12px", fontSize:11, fontWeight:700, color:"#fff" }}>Day {day.day_number}</span>
                                         <div>
                                             <div style={{ fontWeight:600, fontSize:14 }}>{day.locations.map(l => l.name.split(" ")[0]).join(" · ")}</div>
-                                            <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", marginTop:2 }}>{day.locations.length} location{day.locations.length!==1?"s":""}</div>
+                                            <div style={{ fontSize:11, color:"rgba(62,39,35,0.5)", marginTop:2 }}>{day.locations.length} location{day.locations.length!==1?"s":""}</div>
                                         </div>
                                     </div>
                                     <div style={{ display:"flex", alignItems:"center", gap:18 }}>
                                         <div style={{ textAlign:"center" }}>
                                             <div style={{ fontWeight:700 }}>{day.total_visit_hours}h</div>
-                                            <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>Visit</div>
+                                            <div style={{ fontSize:10, color:"rgba(62,39,35,0.45)" }}>Visit</div>
                                         </div>
                                         <div style={{ textAlign:"center" }}>
                                             <div style={{ fontWeight:700 }}>${day.total_entry_fees_usd}</div>
-                                            <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>Fees</div>
+                                            <div style={{ fontSize:10, color:"rgba(62,39,35,0.45)" }}>Fees</div>
                                         </div>
-                                        <span style={{ color:"rgba(255,255,255,0.4)", fontSize:12 }}>{isOpen ? "▲" : "▼"}</span>
+                                        <span style={{ color:"rgba(62,39,35,0.4)", fontSize:12 }}>{isOpen ? "▲" : "▼"}</span>
                                     </div>
                                 </div>
 
                                 {isOpen && (
-                                    <div style={{ padding:"0 20px 20px", borderTop:"1px solid rgba(255,255,255,0.1)" }}>
+                                    <div style={{ padding:"0 20px 20px", borderTop:"1px solid #E8D5BC" }}>
                                         {day.locations.map((loc, li) => (
-                                            <div key={li} style={{ display:"flex", gap:14, padding:"13px 0", borderBottom: li<day.locations.length-1 ? "1px solid rgba(255,255,255,0.08)" : "none" }}>
-                                                <div style={{ width:24, height:24, borderRadius:"50%", background:color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:11, flexShrink:0, marginTop:2 }}>{li+1}</div>
+                                            <div key={li} style={{ display:"flex", gap:14, padding:"13px 0", borderBottom: li<day.locations.length-1 ? "1px solid #E8D5BC" : "none" }}>
+                                                <div style={{ width:24, height:24, borderRadius:"50%", background:color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:11, color:"#fff", flexShrink:0, marginTop:2 }}>{li+1}</div>
                                                 <div style={{ flex:1 }}>
                                                     <div style={{ fontWeight:600, marginBottom:3 }}>{loc.name}</div>
-                                                    <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginBottom:6 }}>{loc.description}</div>
-                                                    <div style={{ display:"flex", gap:12, fontSize:11, color:"rgba(255,255,255,0.45)" }}>
+                                                    <div style={{ fontSize:12, color:"rgba(62,39,35,0.6)", marginBottom:6 }}>{loc.description}</div>
+                                                    <div style={{ display:"flex", gap:12, fontSize:11, color:"rgba(62,39,35,0.5)" }}>
                                                         <span>🕐 {loc.visit_duration_hours}h</span>
-                                                        <span>{loc.entry_fee_usd>0 ? `💵 $${loc.entry_fee_usd}` : "💚 Free"}</span>
+                                                        <span style={{ color:"#8C3322", fontWeight:600 }}>{loc.entry_fee_usd>0 ? `💵 $${loc.entry_fee_usd}` : "💚 Free"}</span>
                                                         {loc.best_time && <span>⏰ Best: {loc.best_time}</span>}
                                                     </div>
                                                     {loc.tags?.length > 0 && (
                                                         <div style={{ marginTop:8, display:"flex", gap:5, flexWrap:"wrap" }}>
                                                             {loc.tags.slice(0,3).map(t => (
-                                                                <span key={t} style={{ background:"rgba(255,255,255,0.1)", borderRadius:4, padding:"2px 7px", fontSize:10, color:"rgba(255,255,255,0.6)" }}>{t}</span>
+                                                                <span key={t} style={{ background:"#F9F6F0", borderRadius:4, padding:"2px 7px", fontSize:10, color:"#8C3322", border:"1px solid #E8D5BC" }}>{t}</span>
                                                             ))}
                                                         </div>
                                                     )}
@@ -501,16 +513,16 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
 
                                         {/* Hotel suggestion for this day */}
                                         {hotel_suggestions?.[day.day_number-1]?.hotel && (
-                                            <div style={{ marginTop:14, background:"rgba(255,204,0,0.08)", border:"1px solid rgba(255,204,0,0.2)", borderRadius:10, padding:"12px 14px" }}>
-                                                <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.4)", marginBottom:6 }}>🏨 SUGGESTED STAY</div>
+                                            <div style={{ marginTop:14, background:"rgba(212,163,115,0.1)", border:"1px solid #D4A373", borderRadius:10, padding:"12px 14px" }}>
+                                                <div style={{ fontSize:10, fontWeight:700, color:"rgba(140,51,34,0.7)", marginBottom:6 }}>🏨 SUGGESTED STAY</div>
                                                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                                                     <div>
                                                         <div style={{ fontWeight:600, fontSize:13 }}>{hotel_suggestions[day.day_number-1].hotel.name}</div>
-                                                        <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)" }}>{hotel_suggestions[day.day_number-1].hotel.type} · ⭐ {hotel_suggestions[day.day_number-1].hotel.rating}</div>
+                                                        <div style={{ fontSize:11, color:"rgba(62,39,35,0.55)" }}>{hotel_suggestions[day.day_number-1].hotel.type} · ⭐ {hotel_suggestions[day.day_number-1].hotel.rating}</div>
                                                     </div>
                                                     <div style={{ textAlign:"right" }}>
-                                                        <div style={{ fontWeight:700, color:"#ffcc00", fontSize:14 }}>${hotel_suggestions[day.day_number-1].hotel.price_per_night}</div>
-                                                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>per night</div>
+                                                        <div style={{ fontWeight:700, color:"#8C3322", fontSize:14 }}>${hotel_suggestions[day.day_number-1].hotel.price_per_night}</div>
+                                                        <div style={{ fontSize:10, color:"rgba(62,39,35,0.4)" }}>per night</div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -526,7 +538,7 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
                 <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
                     {/* Stats */}
-                    <div style={{ background:"#4d8a82", border:"1px solid rgba(255,255,255,0.16)", borderRadius:12, padding:20, color:"#fff" }}>
+                    <div style={{ background:"#FFFFFF", border:"1px solid #E8D5BC", borderRadius:12, padding:20, color:"#3E2723", boxShadow:"0 2px 8px rgba(62,39,35,0.04)" }}>
                         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                             {[
                                 { v: n_days,                                            l: "Days" },
@@ -534,9 +546,9 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
                                 { v: `${Math.round(total_distance_km)} km`,             l: "Total Route" },
                                 { v: `${Math.round(route_summary?.avg_daily_distance_km||0)} km`, l: "Avg/Day" },
                             ].map(({ v, l }) => (
-                                <div key={l} style={{ background:"rgba(255,255,255,0.1)", borderRadius:8, padding:"12px 8px", textAlign:"center" }}>
-                                    <div style={{ fontFamily:"'Playfair Display',serif", fontSize:16, color:"#ffcc00" }}>{v}</div>
-                                    <div style={{ fontSize:10, color:"rgba(255,255,255,0.45)", marginTop:2 }}>{l}</div>
+                                <div key={l} style={{ background:"#F9F6F0", border:"1px solid #E8D5BC", borderRadius:8, padding:"12px 8px", textAlign:"center" }}>
+                                    <div style={{ fontFamily:"'Playfair Display',serif", fontSize:16, color:"#8C3322" }}>{v}</div>
+                                    <div style={{ fontSize:10, color:"rgba(62,39,35,0.55)", marginTop:2 }}>{l}</div>
                                 </div>
                             ))}
                         </div>
@@ -544,7 +556,7 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
 
                     {/* Budget breakdown */}
                     {budget_breakdown && (
-                        <div style={{ background:"#4d8a82", border:"1px solid rgba(255,255,255,0.16)", borderRadius:12, padding:20, color:"#fff" }}>
+                        <div style={{ background:"#FFFFFF", border:"1px solid #E8D5BC", borderRadius:12, padding:20, color:"#3E2723", boxShadow:"0 2px 8px rgba(62,39,35,0.04)" }}>
                             <div style={{ fontWeight:700, marginBottom:14, fontSize:13 }}>💰 Budget Breakdown</div>
                             {[
                                 ["🏨 Accommodation", budget_breakdown.accommodation_usd],
@@ -552,17 +564,17 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
                                 ["🍽️ Food (est.)",   budget_breakdown.food_estimate_usd],
                                 ["🚗 Transport",     budget_breakdown.transport_estimate_usd],
                             ].map(([label, val]) => (
-                                <div key={label} style={{ display:"flex", justifyContent:"space-between", fontSize:12.5, marginBottom:8, color:"rgba(255,255,255,0.7)" }}>
+                                <div key={label} style={{ display:"flex", justifyContent:"space-between", fontSize:12.5, marginBottom:8, color:"rgba(62,39,35,0.7)" }}>
                                     <span>{label}</span>
-                                    <strong style={{ color:"#fff" }}>${val}</strong>
+                                    <strong style={{ color:"#3E2723" }}>${val}</strong>
                                 </div>
                             ))}
-                            <div style={{ height:6, background:"rgba(255,255,255,0.15)", borderRadius:3, margin:"12px 0 8px", overflow:"hidden" }}>
-                                <div style={{ height:"100%", borderRadius:3, background: budget_breakdown.within_budget ? "#34d399" : "#f87171", width:`${Math.min((budget_breakdown.total_estimate_usd/budget_breakdown.budget_provided_usd)*100,100)}%` }} />
+                            <div style={{ height:6, background:"#F9F6F0", border:"1px solid #E8D5BC", borderRadius:3, margin:"12px 0 8px", overflow:"hidden", position:"relative" }}>
+                                <div style={{ height:"100%", borderRadius:3, background: budget_breakdown.within_budget ? "rgba(74,93,35,0.8)" : "#8C3322", width:`${Math.min((budget_breakdown.total_estimate_usd/budget_breakdown.budget_provided_usd)*100,100)}%` }} />
                             </div>
                             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:12 }}>
-                                <strong style={{ color:"#ffcc00" }}>${Math.round(budget_breakdown.total_estimate_usd)} est.</strong>
-                                <span style={{ color: budget_breakdown.within_budget ? "#34d399" : "#f87171", fontWeight:600 }}>
+                                <strong style={{ color:"#8C3322" }}>${Math.round(budget_breakdown.total_estimate_usd)} est.</strong>
+                                <span style={{ color: budget_breakdown.within_budget ? "#4A5D23" : "#8C3322", fontWeight:600 }}>
                                     {budget_breakdown.within_budget ? "✓ Within budget" : "⚠ Over budget"}
                                 </span>
                             </div>
@@ -571,7 +583,7 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
 
                     {/* Saved to My Trips notice */}
                     {result.saved_itinerary_id && (
-                        <div style={{ background:"rgba(52,211,153,0.1)", border:"1px solid rgba(52,211,153,0.3)", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#34d399", textAlign:"center" }}>
+                        <div style={{ background:"rgba(74,93,35,0.1)", border:"1px solid rgba(74,93,35,0.3)", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#4A5D23", textAlign:"center" }}>
                             ✅ Saved to My Trips (ID #{result.saved_itinerary_id})
                         </div>
                     )}
@@ -637,36 +649,36 @@ export default function ItineraryPlanner() {
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap');
                 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-                .ip-root { min-height:100vh; background:#e8f0ef; font-family:'DM Sans',sans-serif; }
-                .ip-hero { background:#2d4a47; padding:24px 32px; border-bottom:1px solid rgba(255,255,255,0.08); }
-                .ip-hero-inner { max-width:960px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+                .ip-root { min-height:100vh; background:transparent; font-family:'DM Sans',sans-serif; color: #3E2723; }
+                .ip-hero { position:relative; background:#8C3322; padding:24px 32px; border-bottom:1px solid rgba(255,255,255,0.1); overflow:hidden; }
+                .ip-hero-inner { position:relative; z-index:2; max-width:960px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
                 .ip-content { max-width:960px; margin:0 auto; padding:36px 24px 80px; }
-                .ip-error { background:rgba(139,26,26,0.18); border:1px solid rgba(139,26,26,0.35); border-radius:10px; padding:12px 16px; font-size:13px; color:#ffb4b4; margin-bottom:24px; }
+                .ip-error { background:rgba(140,51,34,0.1); border:1px solid rgba(140,51,34,0.3); border-radius:10px; padding:12px 16px; font-size:13px; color:#8C3322; margin-bottom:24px; }
                 @media(max-width:700px){
                     .ip-content{padding:24px 16px 60px;}
                     .ip-hero{padding:20px 16px;}
                 }
             `}</style>
 
-            <div className="ip-root">
-                <Navbar />
+            <Layout>
 
                 {/* Hero with step progress */}
                 <div className="ip-hero">
+                    <HansaWatermark />
                     <div className="ip-hero-inner">
                         <div>
-                            <p style={{ fontSize:10, fontWeight:700, letterSpacing:"0.14em", textTransform:"uppercase", color:"rgba(232,240,239,0.4)", marginBottom:6 }}>VibeLanka</p>
-                            <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, fontWeight:500, color:"#e8f0ef" }}>Itinerary Planner</h1>
+                            <p style={{ fontSize:10, fontWeight:700, letterSpacing:"0.14em", textTransform:"uppercase", color:"rgba(255,255,255,0.6)", marginBottom:6 }}>VibeLanka</p>
+                            <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, fontWeight:500, color:"#fff" }}>Itinerary Planner</h1>
                         </div>
 
                         {/* Step indicators */}
                         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                             {STEPS.map((label, i) => (
                                 <div key={i} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                                    <div style={{ width:26, height:26, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:11, flexShrink:0, background: step>i ? "#34d399" : step===i ? "#ffcc00" : "rgba(255,255,255,0.15)", color: step>i ? "#fff" : step===i ? "#1a2e2b" : "rgba(255,255,255,0.4)" }}>
+                                    <div style={{ width:26, height:26, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:11, flexShrink:0, background: step>i ? "#4A5D23" : step===i ? "#D4A373" : "rgba(255,255,255,0.15)", color: step>i ? "#fff" : step===i ? "#fff" : "rgba(255,255,255,0.6)" }}>
                                         {step > i ? "✓" : i+1}
                                     </div>
-                                    <span style={{ fontSize:12, fontWeight:500, color: step===i ? "#ffcc00" : "rgba(255,255,255,0.45)", whiteSpace:"nowrap" }}>{label}</span>
+                                    <span style={{ fontSize:12, fontWeight:500, color: step===i ? "#D4A373" : "rgba(255,255,255,0.5)", whiteSpace:"nowrap" }}>{label}</span>
                                     {i < STEPS.length-1 && <div style={{ width:24, height:1, background:"rgba(255,255,255,0.2)" }} />}
                                 </div>
                             ))}
@@ -717,7 +729,7 @@ export default function ItineraryPlanner() {
                     locked={!result?.saved_itinerary_id}
                     lockedMsg="Generate your itinerary first"
                 />
-            </div>
+            </Layout>
         </>
     );
 }

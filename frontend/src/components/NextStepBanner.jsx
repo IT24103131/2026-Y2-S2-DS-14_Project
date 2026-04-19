@@ -1,19 +1,17 @@
 import { useNavigate } from "react-router-dom";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NextStepBanner.jsx  —  shared component
-//
-// A sticky bottom banner that guides the user to the next step.
-// Used on: Locations, Hotels, Guides, ItineraryPlanner pages.
+// NextStepBanner.jsx  —  shared bottom banner
+// Vibe Lanka design system: rust #8C3322, cream #F9F6F0, gold #D4A373, green #4A5D23
 //
 // Props:
 //   step        — current step number (1-4)
-//   done        — whether this step is completed (shows green "✓ Done" badge)
+//   done        — whether this step is completed
 //   nextPath    — where the button navigates to
 //   nextLabel   — button text e.g. "Choose Your Hotel →"
 //   nextSub     — subtitle e.g. "Step 2 of 4"
-//   locked      — if true, button is disabled with a message
-//   lockedMsg   — message shown when locked e.g. "Save a location first"
+//   locked      — if true, button is disabled
+//   lockedMsg   — message shown when locked
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function NextStepBanner({ step, done, nextPath, nextLabel, nextSub, locked = false, lockedMsg = "" }) {
@@ -22,21 +20,21 @@ export default function NextStepBanner({ step, done, nextPath, nextLabel, nextSu
     return (
         <>
             <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;500&display=swap');
 
                 .nsb-wrap {
                     position: fixed;
-                    bottom: 0; left: 0; right: 0;
+                    bottom: 0; left: 268px; right: 0;
                     z-index: 50;
-                    background: #2d4a47;
+                    background: #8C3322;
                     border-top: 1px solid rgba(255,255,255,0.1);
-                    box-shadow: 0 -4px 24px rgba(29,58,54,0.3);
+                    box-shadow: 0 -4px 24px rgba(140,51,34,0.25);
                     padding: 16px 32px;
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
                     gap: 20px;
-                    font-family: 'DM Sans', sans-serif;
+                    font-family: 'Inter', sans-serif;
                 }
 
                 .nsb-left {
@@ -59,27 +57,27 @@ export default function NextStepBanner({ step, done, nextPath, nextLabel, nextSu
                     transition: background 0.2s, transform 0.2s;
                 }
 
-                .nsb-dot.done   { background: #34d399; }
-                .nsb-dot.active { background: #ffcc00; transform: scale(1.3); }
+                .nsb-dot.done   { background: #4A5D23; }
+                .nsb-dot.active { background: #D4A373; transform: scale(1.3); }
                 .nsb-dot.future { background: rgba(255,255,255,0.2); }
 
                 .nsb-label {
                     font-size: 13px;
                     font-weight: 600;
-                    color: #e8f0ef;
+                    color: rgba(255,255,255,0.85);
                 }
 
                 .nsb-done-badge {
                     display: inline-flex;
                     align-items: center;
                     gap: 5px;
-                    background: rgba(52,211,153,0.15);
-                    border: 1px solid rgba(52,211,153,0.35);
+                    background: rgba(74,93,35,0.25);
+                    border: 1px solid rgba(74,93,35,0.5);
                     border-radius: 20px;
                     padding: 3px 10px;
                     font-size: 11px;
                     font-weight: 600;
-                    color: #34d399;
+                    color: #a8c48a;
                 }
 
                 .nsb-right {
@@ -90,7 +88,7 @@ export default function NextStepBanner({ step, done, nextPath, nextLabel, nextSu
 
                 .nsb-sub {
                     font-size: 12px;
-                    color: rgba(232,240,239,0.45);
+                    color: rgba(255,255,255,0.45);
                     font-weight: 400;
                     text-align: right;
                 }
@@ -98,34 +96,35 @@ export default function NextStepBanner({ step, done, nextPath, nextLabel, nextSu
                 .nsb-btn {
                     padding: 12px 28px;
                     border: none;
-                    border-radius: 10px;
-                    font-family: 'DM Sans', sans-serif;
+                    border-radius: 50px;
+                    font-family: 'Inter', sans-serif;
                     font-size: 14px;
                     font-weight: 700;
                     cursor: pointer;
                     white-space: nowrap;
                     transition: background 0.2s, transform 0.15s, opacity 0.2s;
+                    min-height: 48px;
                 }
 
                 .nsb-btn.active {
-                    background: #ffcc00;
-                    color: #1a2e2b;
-                    box-shadow: 0 4px 14px rgba(255,204,0,0.35);
+                    background: #ffffff;
+                    color: #8C3322;
+                    box-shadow: 0 4px 14px rgba(255,255,255,0.2);
                 }
 
                 .nsb-btn.active:hover {
-                    background: #e6b800;
+                    background: #F9F6F0;
                     transform: translateY(-1px);
                 }
 
                 .nsb-btn.done-style {
-                    background: rgba(52,211,153,0.15);
-                    border: 1px solid rgba(52,211,153,0.3);
-                    color: #34d399;
+                    background: rgba(255,255,255,0.15);
+                    border: 1px solid rgba(255,255,255,0.3);
+                    color: #fff;
                 }
 
                 .nsb-btn.done-style:hover {
-                    background: rgba(52,211,153,0.25);
+                    background: rgba(255,255,255,0.22);
                     transform: translateY(-1px);
                 }
 
@@ -137,12 +136,14 @@ export default function NextStepBanner({ step, done, nextPath, nextLabel, nextSu
 
                 .nsb-locked-msg {
                     font-size: 11.5px;
-                    color: rgba(255,255,255,0.35);
+                    color: rgba(255,255,255,0.45);
                 }
 
-                /* Push page content above the banner */
                 .nsb-spacer { height: 80px; }
 
+                @media(max-width: 900px) {
+                    .nsb-wrap { left: 0; }
+                }
                 @media(max-width: 580px) {
                     .nsb-wrap { padding: 14px 18px; }
                     .nsb-btn { padding: 11px 18px; font-size: 13px; }
@@ -150,11 +151,9 @@ export default function NextStepBanner({ step, done, nextPath, nextLabel, nextSu
                 }
             `}</style>
 
-            {/* Spacer so page content isn't hidden behind the banner */}
             <div className="nsb-spacer" />
 
             <div className="nsb-wrap">
-                {/* Left: step dots + done badge */}
                 <div className="nsb-left">
                     <div className="nsb-step-dots">
                         {[1, 2, 3, 4].map(n => (
@@ -163,13 +162,12 @@ export default function NextStepBanner({ step, done, nextPath, nextLabel, nextSu
                     </div>
                     {done && <span className="nsb-done-badge">✓ This step done</span>}
                     {!done && !locked && (
-                        <span style={{ fontSize:12, color:"rgba(232,240,239,0.45)" }}>
+                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
                             Save something on this page to continue
                         </span>
                     )}
                 </div>
 
-                {/* Right: subtitle + button */}
                 <div className="nsb-right">
                     {locked && lockedMsg && (
                         <span className="nsb-locked-msg">🔒 {lockedMsg}</span>

@@ -1,0 +1,19 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="50" cy="50" r="48" fill="#8C3322" />
+  <circle cx="50" cy="50" r="42" fill="black" />
+  <!-- Outer petals -->
+  <g transform="translate(50,50)" fill="white">
+    <path d="M0-40 C10-40 15-30 0-10 C-15-30 -10-40 0-40" transform="rotate(0)" />
+    <path d="M0-40 C10-40 15-30 0-10 C-15-30 -10-40 0-40" transform="rotate(45)" />
+    <path d="M0-40 C10-40 15-30 0-10 C-15-30 -10-40 0-40" transform="rotate(90)" />
+    <path d="M0-40 C10-40 15-30 0-10 C-15-30 -10-40 0-40" transform="rotate(135)" />
+    <path d="M0-40 C10-40 15-30 0-10 C-15-30 -10-40 0-40" transform="rotate(180)" />
+    <path d="M0-40 C10-40 15-30 0-10 C-15-30 -10-40 0-40" transform="rotate(225)" />
+    <path d="M0-40 C10-40 15-30 0-10 C-15-30 -10-40 0-40" transform="rotate(270)" />
+    <path d="M0-40 C10-40 15-30 0-10 C-15-30 -10-40 0-40" transform="rotate(315)" />
+  </g>
+  <!-- Inner yellow ring -->
+  <circle cx="50" cy="50" r="18" fill="#F0C040" stroke="#8C3322" stroke-width="2" />
+  <circle cx="50" cy="50" r="12" fill="#8C3322" />
+  <circle cx="50" cy="50" r="4" fill="#F0C040" />
+</svg>

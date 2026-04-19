@@ -13,7 +13,7 @@ CHANGE in this version:
 import json, re
 from flask import Blueprint, request, jsonify
 from sqlalchemy import text
-
+from typing import Optional
 from models import SessionLocal
 from utils import login_required
 from route_optimizer import optimize_route, haversine_distance
@@ -85,7 +85,7 @@ for _loc in SRI_LANKA_LOCATIONS:
         _LOCS_BY_NAME[_fw] = _loc
 
 
-def _enrich_location(name: str) -> dict | None:
+def _enrich_location(name: str) -> Optional[dict]:
     key = name.strip().lower()
     if key in _LOCS_BY_NAME:
         return _LOCS_BY_NAME[key]

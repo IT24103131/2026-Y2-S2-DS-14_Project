@@ -21,18 +21,32 @@ Endpoints:
 
 import os
 import warnings
-
+from typing import Optional
 import joblib
 import pandas as pd
 from flask import Blueprint, jsonify, request
 from sqlalchemy import text
 
-from models import SessionLocal
+from models import SessionLocal, engine
 from utils import login_required
 
 warnings.filterwarnings("ignore")
 
 hotels_router = Blueprint("hotels_router", __name__)
+
+
+def _migrate_selected_hotels():
+    """Add num_people column to selected_hotels if it doesn't exist yet."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text(
+                "ALTER TABLE selected_hotels ADD COLUMN IF NOT EXISTS num_people INTEGER DEFAULT 1"
+            ))
+            conn.commit()
+    except Exception as e:
+        print(f"[hotel_routes] Migration note: {e}")
+
+_migrate_selected_hotels()
 
 # ── Load KMeans model ──────────────────────────────────────────────────────────
 _MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hotel_model.joblib")
@@ -48,8 +62,7 @@ def _get_model():
             print(f"[hotel_routes] Could not load model: {e}")
     return _hotel_model
 
-
-def _predict_cluster(o, c, e, a, n) -> int | None:
+def _predict_cluster(o, c, e, a, n) -> Optional[int]:
     """
     Predict hotel cluster from OCEAN scores (0-10 scale from DB).
     Model was trained on 0-1 scale → divide by 10.
@@ -240,8 +253,16 @@ def get_hotel_recommendations(current_user, db):
         db.rollback()
         print(f"[hotel_routes] WARNING: could not write to recommended_hotels: {e}")
 
+    # Include personality_type for frontend recommendation text
+    qr_type = db.execute(
+        text("SELECT personality_type FROM quiz_result WHERE user_id = :uid ORDER BY result_id DESC LIMIT 1"),
+        {"uid": current_user.user_id}
+    ).fetchone()
+    personality_type = (qr_type[0] or "").strip().lower() if qr_type else ""
+
     return jsonify({
         "personality_cluster":  cluster,
+        "personality_type":     personality_type,
         "locations_used":       saved_locations,
         "count":                len(results),
         "hotels":               results,
@@ -263,23 +284,26 @@ def save_hotel(current_user, db):
     total_budget = data.get("total_budget")
     check_in     = data.get("check_in", "")
     check_out    = data.get("check_out", "")
+    num_people   = int(data.get("num_people", 1) or 1)
 
     if not hotel_id or total_budget is None:
         return jsonify({"detail": "hotel_id and total_budget are required"}), 422
+    if not check_in or not check_out:
+        return jsonify({"detail": "check_in and check_out dates are required"}), 422
 
     try:
-        # ON CONFLICT: if same user already saved same hotel, update it
         db.execute(
             text("""
                  INSERT INTO selected_hotels
-                     (user_id, hotel_id, location, total_budget, check_in, check_out)
-                 VALUES (:uid, :hid, :loc, :budget, :ci, :co)
+                     (user_id, hotel_id, location, total_budget, check_in, check_out, num_people)
+                 VALUES (:uid, :hid, :loc, :budget, :ci, :co, :np)
                      ON CONFLICT (user_id, hotel_id) DO UPDATE
-                                                            SET total_budget = :budget,
-                                                            location     = :loc,
-                                                            check_in     = :ci,
-                                                            check_out    = :co,
-                                                            created_at   = CURRENT_TIMESTAMP
+                         SET total_budget = :budget,
+                             location     = :loc,
+                             check_in     = :ci,
+                             check_out    = :co,
+                             num_people   = :np,
+                             created_at   = CURRENT_TIMESTAMP
                  """),
             {
                 "uid":    current_user.user_id,
@@ -288,6 +312,7 @@ def save_hotel(current_user, db):
                 "budget": float(total_budget),
                 "ci":     check_in,
                 "co":     check_out,
+                "np":     num_people,
             }
         )
         db.commit()
@@ -306,7 +331,8 @@ def get_saved_hotels(current_user, db):
     rows = db.execute(
         text("""
              SELECT sh.id, sh.hotel_id, h.name, sh.location,
-                    sh.total_budget, sh.check_in, sh.check_out, sh.created_at
+                    sh.total_budget, sh.check_in, sh.check_out, sh.created_at,
+                    COALESCE(sh.num_people, 1), h.budget_per_night
              FROM selected_hotels sh
                       JOIN hotel h ON sh.hotel_id = h.hotel_id
              WHERE sh.user_id = :uid
@@ -317,15 +343,29 @@ def get_saved_hotels(current_user, db):
 
     saved = []
     for r in rows:
+        check_in  = str(r[5]) if r[5] else ""
+        check_out = str(r[6]) if r[6] else ""
+        nights = 0
+        if check_in and check_out:
+            from datetime import date
+            try:
+                ci = date.fromisoformat(check_in)
+                co = date.fromisoformat(check_out)
+                nights = max((co - ci).days, 0)
+            except Exception:
+                nights = 0
         saved.append({
-            "id":           r[0],
-            "hotel_id":     r[1],
-            "name":         r[2],
-            "location":     r[3],
-            "total_budget": float(r[4]) if r[4] else 0,
-            "check_in":     r[5] or "",
-            "check_out":    r[6] or "",
-            "saved_at":     r[7].isoformat() if r[7] else None,
+            "id":               r[0],
+            "hotel_id":         r[1],
+            "name":             r[2],
+            "location":         r[3],
+            "total_budget":     float(r[4]) if r[4] else 0,
+            "check_in":         check_in,
+            "check_out":        check_out,
+            "saved_at":         r[7].isoformat() if r[7] else None,
+            "num_people":       int(r[8]) if r[8] else 1,
+            "budget_per_night": float(r[9]) if r[9] else 0,
+            "nights":           nights,
         })
 
     grand_total = sum(h["total_budget"] for h in saved)
@@ -356,6 +396,9 @@ def update_saved_hotel(current_user, db, row_id):
     if "check_out" in data:
         fields.append("check_out = :co")
         params["co"] = data["check_out"]
+    if "num_people" in data:
+        fields.append("num_people = :np")
+        params["np"] = int(data["num_people"] or 1)
 
     if not fields:
         return jsonify({"detail": "Nothing to update"}), 422

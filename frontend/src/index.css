@@ -1,27 +1,37 @@
 /* ─── CSS Variables ───────────────────────────────────────── */
 :root {
-    --bg-main: #e8f0ef;
-    --bg-sidebar: #2d4a47;
-    --bg-card: #4d8a82;
-    --bg-card-light: #5a9990;
-    --bg-card-dark: #3d7068;
-    --bg-input: rgba(255,255,255,0.85);
+    /* Premium Vibe Lanka Design System */
+    --primary-rust:   #8C3322;
+    --primary-rust-dark: #6A2417;
+    --bg-cream:       #F9F6F0;
+    --surface-white:  #FFFFFF;
+    --text-dark:      #3E2723;
+    --text-muted:     rgba(62, 39, 35, 0.6);
+    --accent-green:   #4A5D23;
+    --accent-gold:    #D4A373;
+    --border-tan:     #E8D5BC;
+    
+    /* Legacy fallback variables to prevent old pages from breaking */
+    --bg-main:        var(--bg-cream);
+    --bg-sidebar:     var(--primary-rust);
+    --bg-card:        var(--surface-white);
+    --bg-card-light:  var(--bg-cream);
+    --bg-card-dark:   #fff;
+    --bg-input:       rgba(255,255,255,0.9);
     --bg-input-focus: #ffffff;
-    --text-primary: #1a2e2b;
-    --text-sidebar: #e8f0ef;
-    --text-muted: #5a7a76;
-    --text-card: #1a2e2b;
-    --text-on-teal: #ffffff;
-    --accent-red: #8b1a1a;
-    --accent-red-hover: #a52020;
-    --accent-teal-light: #7ab8b0;
-    --border-card: rgba(255,255,255,0.18);
-    --border-input: rgba(255,255,255,0.6);
-    --shadow-card: 0 4px 24px rgba(45,74,71,0.18), 0 1px 4px rgba(45,74,71,0.1);
-    --shadow-input: 0 2px 8px rgba(45,74,71,0.1);
-    --radius-card: 16px;
-    --radius-input: 10px;
-    --radius-btn: 10px;
+    --text-primary:   var(--text-dark);
+    --text-sidebar:   #ffffff;
+    --text-card:      var(--text-dark);
+    --text-on-teal:   #ffffff;
+    --accent-red:     var(--primary-rust);
+    --accent-red-hover: var(--primary-rust-dark);
+    --border-card:    #E8D5BC;
+    --border-input:   #D4A373;
+    --shadow-card:    0 4px 24px rgba(62,39,35,0.08), 0 1px 4px rgba(62,39,35,0.03);
+    --shadow-input:   0 2px 8px rgba(62,39,35,0.05);
+    --radius-card:    16px;
+    --radius-input:   10px;
+    --radius-btn:     50px;
 }
 
 /* ─── Global reset & base ─────────────────────────────────── */
@@ -32,13 +42,35 @@
 }
 
 html, body, #root {
-    height: 100%;
+    min-height: 100vh;
     width: 100%;
-    background: var(--bg-main);
-    color: var(--text-primary);
+    background-color: var(--bg-cream);
+    color: var(--text-dark);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-family: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+    font-family: 'Inter', 'DM Sans', system-ui, sans-serif;
+}
+
+body {
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* Global Lotus Watermark */
+body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-image: url('./assets/lotus-motif.svg');
+    background-size: 550px;
+    background-repeat: repeat;
+    opacity: 0.12; /* Made clearly visible */
+    z-index: -1;
+    pointer-events: none;
+    background-position: center;
 }
 
 #root {
@@ -51,13 +83,18 @@ html, body, #root {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-    background: rgba(77,138,130,0.35);
+    background: rgba(212, 163, 115, 0.4);
     border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(77,138,130,0.6); }
+::-webkit-scrollbar-thumb:hover { background: rgba(140, 51, 34, 0.6); }
 
 /* ─── Selection ───────────────────────────────────────────── */
 ::selection {
-    background: rgba(77,138,130,0.3);
-    color: var(--text-primary);
+    background: rgba(212, 163, 115, 0.3);
+    color: var(--primary-rust);
+}
+
+/* ─── Typography Helpers ──────────────────────────────────── */
+h1, h2, h3, h4, h5, h6, .font-serif {
+    font-family: 'Playfair Display', serif;
 }
