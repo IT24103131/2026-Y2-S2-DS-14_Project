@@ -1,9 +1,8 @@
 """
 guide_routes.py  —  backend/
 Guide recommender and booking endpoints as a Flask Blueprint.
-
-SELECT queries now include all 9 new guide columns so guide_recommender.py
-gets real data instead of defaults.
+Uses JWT auth (login_required). Calls the new guide_recommender.py
+which uses RF model + cosine OCEAN similarity + vibe compatibility.
 """
 
 import re
@@ -16,14 +15,14 @@ from guide_recommender import get_top_guides
 
 guides_router = Blueprint("guides_router", __name__)
 
-# All guide columns the RF model needs — keeps SELECT lists DRY
+# All guide columns the RF model needs
 _GUIDE_COLS = """
     guide_id, name, language_spoken, status, daily_rate, base_location, rating,
     openness_score, conscientiousness_score, extraversion_score,
     agreeableness_score, neuroticism_score,
     years_of_experience, repeat_client_rate, avg_tour_duration,
     locations_covered, number_of_languages, certified,
-    award_or_recognition, specialization, tourist_type_preference
+    award_or_recognition, specialization
 """
 
 def _parse_duration(raw) -> int:
@@ -39,28 +38,27 @@ def _parse_duration(raw) -> int:
 def _row_to_guide_dict(r) -> dict:
     """Maps a DB row (from the full _GUIDE_COLS select) to a dict."""
     return {
-        "guide_id":                r[0],
-        "name":                    r[1],
-        "language_spoken":         r[2],
-        "status":                  r[3],
-        "daily_rate":              float(r[4])  if r[4]  else 0,
-        "base_location":           r[5],
-        "rating":                  float(r[6])  if r[6]  else 0,
-        "openness_score":          float(r[7])  if r[7]  else 5,
-        "conscientiousness_score": float(r[8])  if r[8]  else 5,
-        "extraversion_score":      float(r[9])  if r[9]  else 5,
-        "agreeableness_score":     float(r[10]) if r[10] else 5,
-        "neuroticism_score":       float(r[11]) if r[11] else 5,
-        # New columns
-        "years_of_experience":     float(r[12]) if r[12] is not None else 5,
-        "repeat_client_rate":      float(r[13]) if r[13] is not None else 60.0,
-        "avg_tour_duration":       float(r[14]) if r[14] is not None else 3.0,
-        "locations_covered":       int(r[15])   if r[15] is not None else 3,
-        "number_of_languages":     int(r[16])   if r[16] is not None else 1,
-        "certified":               int(r[17])   if r[17] is not None else 0,
-        "award_or_recognition":    int(r[18])   if r[18] is not None else 0,
-        "specialization":          r[19] or "Cultural",
-        "tourist_type_preference": r[20] or "All",
+        "guide_id"               : r[0],
+        "name"                   : r[1],
+        "language_spoken"        : r[2],
+        "status"                 : r[3],
+        "daily_rate"             : float(r[4])  if r[4]  else 0,
+        "base_location"          : r[5],
+        "rating"                 : float(r[6])  if r[6]  else 0,
+        "openness_score"         : float(r[7])  if r[7]  else 0,
+        "conscientiousness_score": float(r[8])  if r[8]  else 0,
+        "extraversion_score"     : float(r[9])  if r[9]  else 0,
+        "agreeableness_score"    : float(r[10]) if r[10] else 0,
+        "neuroticism_score"      : float(r[11]) if r[11] else 0,
+        "years_of_experience"    : float(r[12]) if r[12] is not None else 2,
+        "repeat_client_rate"     : float(r[13]) if r[13] is not None else 60.0,
+        "avg_tour_duration"      : float(r[14]) if r[14] is not None else 3.0,
+        "locations_covered"      : int(r[15])   if r[15] is not None else 3,
+        "number_of_languages"    : int(r[16])   if r[16] is not None else 1,
+        "certified"              : int(r[17])   if r[17] is not None else 0,
+        "award_or_recognition"   : int(r[18])   if r[18] is not None else 0,
+        "specialization"         : r[19] or "Cultural",
+        # tourist_type_preference removed — not in DB
     }
 
 
@@ -82,19 +80,19 @@ def recommend_guides(current_user, db):
     Query param: ?language=Sinhala|Tamil|English|All  (default: All)
 
     Flow:
-      1. Read OCEAN from quiz_result
+      1. Read OCEAN + personality_type from quiz_result
       2. Read saved locations from selected_locations
       3. Query guide table (filtered by location + language)
-      4. Rank with RF model + OCEAN similarity + vibe bonus
+      4. Rank with RF model + cosine OCEAN similarity + vibe compatibility
       5. Write top 3 to recommended_guides table
       6. Return results
     """
     language = request.args.get("language", "All")
 
-    # ── 1. OCEAN scores ──────────────────────────────────────────────────────
+    # ── 1. OCEAN scores + personality_type ───────────────────────────────────
     qr = db.execute(text("""
                          SELECT openness_score, conscientiousness_score, extraversion_score,
-                                agreeableness_score, neuroticism_score, duration
+                                agreeableness_score, neuroticism_score, duration, personality_type
                          FROM quiz_result
                          WHERE user_id = :uid
                          ORDER BY result_id DESC LIMIT 1
@@ -104,13 +102,14 @@ def recommend_guides(current_user, db):
         return jsonify({"detail": "Complete the personality quiz first"}), 400
 
     user_ocean = {
-        "openness":          float(qr[0] or 5),
-        "conscientiousness": float(qr[1] or 5),
-        "extraversion":      float(qr[2] or 5),
-        "agreeableness":     float(qr[3] or 5),
-        "neuroticism":       float(qr[4] or 5),
+        "openness":          float(qr[0] or 0),
+        "conscientiousness": float(qr[1] or 0),
+        "extraversion":      float(qr[2] or 0),
+        "agreeableness":     float(qr[3] or 0),
+        "neuroticism":       float(qr[4] or 0),
     }
-    duration = _parse_duration(qr[5])
+    duration         = _parse_duration(qr[5])
+    personality_type = str(qr[6] or "balanced traveler")
 
     # ── 2. Saved locations ───────────────────────────────────────────────────
     loc_rows = db.execute(text("""
@@ -152,8 +151,14 @@ def recommend_guides(current_user, db):
 
     guides_list = [_row_to_guide_dict(r) for r in guide_rows]
 
-    # ── 4. RF ranking ────────────────────────────────────────────────────────
-    top_guides = get_top_guides(guides_list, user_ocean, duration=duration, top_n=3)
+    # ── 4. RF ranking (passes personality_type so vibe compat works) ─────────
+    top_guides = get_top_guides(
+        guides         = guides_list,
+        user_ocean     = user_ocean,
+        duration       = duration,
+        top_n          = 3,
+        user_vibe      = personality_type,   # new — used for vibe compatibility
+    )
 
     # ── 5. Write to recommended_guides ───────────────────────────────────────
     try:
@@ -165,12 +170,12 @@ def recommend_guides(current_user, db):
                             (user_id, guide_id, name, status, language, personality_type, estimated_budget)
                             VALUES (:uid, :gid, :name, :status, :lang, :ptype, :budget)
                             """), {
-                           "uid":    current_user.user_id,
-                           "gid":    g["guide_id"],
-                           "name":   g["name"],
+                           "uid"   : current_user.user_id,
+                           "gid"   : g["guide_id"],
+                           "name"  : g["name"],
                            "status": g["status"],
-                           "lang":   g["language_spoken"],
-                           "ptype":  g.get("vibe_label", ""),
+                           "lang"  : g["language_spoken"],
+                           "ptype" : g.get("vibe_label", ""),
                            "budget": g["estimated_budget"],
                        })
         db.commit()
@@ -179,7 +184,7 @@ def recommend_guides(current_user, db):
         print(f"[guide_routes] recommended_guides write failed: {e}")
 
     return jsonify({
-        "guides":  top_guides,
+        "guides" : top_guides,
         "message": f"Top {len(top_guides)} guides recommended based on your personality",
     }), 200
 
@@ -188,11 +193,7 @@ def recommend_guides(current_user, db):
 @guides_router.post("/guides/book")
 @login_required
 def book_guide(current_user, db):
-    """
-    Book a guide.
-    Body: { guide_id, name, language, estimated_budget }
-    user_id always from JWT.
-    """
+    """Book a guide. Body: { guide_id, name, language, estimated_budget }"""
     data             = request.get_json(silent=True) or {}
     guide_id         = data.get("guide_id")
     name             = data.get("name", "")
@@ -202,7 +203,6 @@ def book_guide(current_user, db):
     if not guide_id:
         return jsonify({"detail": "guide_id is required"}), 422
 
-    # Block if already has a confirmed booking
     existing = db.execute(text("""
                                SELECT id, name FROM selected_guides
                                WHERE user_id = :uid AND current_status = 'confirmed' LIMIT 1
@@ -211,7 +211,6 @@ def book_guide(current_user, db):
     if existing:
         return jsonify({"detail": f"You already have an active booking for '{existing[1]}'. Cancel it first."}), 400
 
-    # Check guide exists and is available
     guide = db.execute(text("SELECT guide_id, status FROM guide WHERE guide_id = :gid"),
                        {"gid": guide_id}).fetchone()
     if not guide:
@@ -223,8 +222,13 @@ def book_guide(current_user, db):
         db.execute(text("""
                         INSERT INTO selected_guides (guide_id, user_id, name, language, current_status, estimated_budget)
                         VALUES (:gid, :uid, :name, :lang, 'confirmed', :budget)
-                        """), {"gid": guide_id, "uid": current_user.user_id,
-                               "name": name, "lang": language, "budget": float(estimated_budget)})
+                        """), {
+                       "gid"   : guide_id,
+                       "uid"   : current_user.user_id,
+                       "name"  : name,
+                       "lang"  : language,
+                       "budget": float(estimated_budget),
+                   })
         db.execute(text("UPDATE guide SET status = 'booked' WHERE guide_id = :gid"),
                    {"gid": guide_id})
         db.commit()
@@ -233,9 +237,9 @@ def book_guide(current_user, db):
         return jsonify({"detail": f"Database error: {str(e)}"}), 500
 
     return jsonify({
-        "message":  f"{name} successfully booked!",
+        "message" : f"{name} successfully booked!",
         "guide_id": guide_id,
-        "user_id":  current_user.user_id,
+        "user_id" : current_user.user_id,
     }), 200
 
 
@@ -250,9 +254,8 @@ def get_my_booking(current_user, db):
                           FROM selected_guides sg
                                    JOIN guide g ON g.guide_id = sg.guide_id
                           WHERE sg.user_id = :uid
-                          ORDER BY
-                              CASE WHEN sg.current_status = 'confirmed' THEN 0 ELSE 1 END,
-                              sg.id DESC
+                          ORDER BY CASE WHEN sg.current_status = 'confirmed' THEN 0 ELSE 1 END,
+                                   sg.id DESC
                               LIMIT 1
                           """), {"uid": current_user.user_id}).fetchone()
 
@@ -260,14 +263,14 @@ def get_my_booking(current_user, db):
         return jsonify({"detail": "No guide booking found"}), 404
 
     return jsonify({
-        "id":               row[0],
-        "name":             row[1],
-        "language":         row[2],
-        "current_status":   row[3],
+        "id"              : row[0],
+        "name"            : row[1],
+        "language"        : row[2],
+        "current_status"  : row[3],
         "estimated_budget": float(row[4]) if row[4] else 0,
-        "base_location":    row[5],
-        "rating":           float(row[6]) if row[6] else 0,
-        "daily_rate":       float(row[7]) if row[7] else 0,
+        "base_location"   : row[5],
+        "rating"          : float(row[6]) if row[6] else 0,
+        "daily_rate"      : float(row[7]) if row[7] else 0,
     }), 200
 
 

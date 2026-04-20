@@ -295,15 +295,15 @@ def save_hotel(current_user, db):
         db.execute(
             text("""
                  INSERT INTO selected_hotels
-                     (user_id, hotel_id, location, total_budget, check_in, check_out, num_people)
+                 (user_id, hotel_id, location, total_budget, check_in, check_out, num_people)
                  VALUES (:uid, :hid, :loc, :budget, :ci, :co, :np)
                      ON CONFLICT (user_id, hotel_id) DO UPDATE
-                         SET total_budget = :budget,
-                             location     = :loc,
-                             check_in     = :ci,
-                             check_out    = :co,
-                             num_people   = :np,
-                             created_at   = CURRENT_TIMESTAMP
+                                                            SET total_budget = :budget,
+                                                            location     = :loc,
+                                                            check_in     = :ci,
+                                                            check_out    = :co,
+                                                            num_people   = :np,
+                                                            created_at   = CURRENT_TIMESTAMP
                  """),
             {
                 "uid":    current_user.user_id,

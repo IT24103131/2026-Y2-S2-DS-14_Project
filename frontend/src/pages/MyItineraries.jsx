@@ -628,7 +628,7 @@ function TripCard({ it, feedbacks, onRate, onEdit, onDelete, onRefreshFeedbacks 
                         {fbs.length > 0 && (
                             <div style={{ marginTop:4 }}>
                                 <button onClick={() => setShowReviews(r => !r)}
-                                        style={{ width:"100%", marginBottom:10, padding:9, border:"1px solid rgba(255,255,255,0.18)", borderRadius:10, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontSize:12.5, fontWeight:500, color:"rgba(255,255,255,0.6)", background:"transparent", display:"flex", alignItems:"center", justifyContent:"center", gap:6, transition:"border-color 0.2s,color 0.2s" }}>
+                                        style={{ width:"100%", marginBottom:10, padding:9, border:"1px solid rgba(226, 114, 91, 1)", borderRadius:10, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontSize:12.5, fontWeight:500, color:"rgba(226, 114, 91, 1)", background:"transparent", display:"flex", alignItems:"center", justifyContent:"center", gap:6, transition:"border-color 0.2s,color 0.2s" }}>
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                                         {showReviews ? <polyline points="18 15 12 9 6 15"/> : <polyline points="6 9 12 15 18 9"/>}
                                     </svg>

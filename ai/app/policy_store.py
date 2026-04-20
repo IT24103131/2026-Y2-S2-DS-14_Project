@@ -1,8 +1,11 @@
 import json
 import os
 
-POLICY_PATH = os.getenv("POLICY_PATH", "artifacts/policy.json")
-
+_HERE = os.path.dirname(os.path.abspath(__file__))
+POLICY_PATH = os.getenv(
+    "POLICY_PATH",
+    os.path.join(_HERE, "artifacts", "policy.json")
+)
 
 def load_policy() -> dict:
     """Load policy from JSON file. Returns empty dict if file does not exist."""

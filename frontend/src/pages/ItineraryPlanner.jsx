@@ -224,6 +224,7 @@ function FeedbackForm({ itineraryId }) {
 
 function TripSettings({ plannerData, onSubmit }) {
     const [startingPoint, setStartingPoint] = useState("colombo");
+    const [adjustedDays, setAdjustedDays] = useState(plannerData.default_days || 5);  // ← ADD THIS
 
     const count      = plannerData.location_count || 0;
     const days       = plannerData.default_days || 5;
@@ -276,19 +277,19 @@ function TripSettings({ plannerData, onSubmit }) {
             {/* Auto-filled settings summary */}
             <div style={{ background:"#FFFFFF", border:"1px solid #E8D5BC", borderRadius:14, padding:28, color:"#3E2723", marginBottom:16, boxShadow:"0 4px 16px rgba(62,39,35,0.06)" }}>
 
-                {/* Trip duration — from quiz, read-only */}
+                {/* Trip duration — pre-filled from quiz, still adjustable */}
                 <div style={{ marginBottom:20 }}>
                     <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(62,39,35,0.55)", marginBottom:10 }}>
                         Trip Duration
+                        <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, fontSize:11, color:"rgba(62,39,35,0.4)", marginLeft:8 }}>
+            (from your quiz — adjust if needed)
+        </span>
                     </div>
-                    <div style={{ background:"#F9F6F0", border:"1px solid #E8D5BC", borderRadius:10, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                        <div>
-                            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:22, color:"#8C3322" }}>{days} days</div>
-                            <div style={{ fontSize:11, color:"rgba(62,39,35,0.5)", marginTop:3 }}>
-                                Based on your quiz preference
-                            </div>
-                        </div>
-                        <div style={{ fontSize:28 }}>🗓️</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                        <input type="range" min={1} max={14} value={adjustedDays}
+                               onChange={e => setAdjustedDays(Number(e.target.value))}
+                               style={{ flex:1, accentColor:"#8C3322" }} />
+                        <span style={{ fontFamily:"'Playfair Display',serif", fontSize:22, color:"#8C3322", minWidth:24 }}>{adjustedDays}</span>
                     </div>
                 </div>
 
@@ -344,7 +345,7 @@ function TripSettings({ plannerData, onSubmit }) {
                 </div>
             </div>
 
-            <button onClick={() => onSubmit({ days, budget: budgetUsd, startingPoint })}
+            <button onClick={() => onSubmit({ days: adjustedDays, budget: budgetUsd, startingPoint })}
                     style={{ width:"100%", padding:14, background:"#8C3322", border:"none", borderRadius:10, fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:15, color:"#fff", cursor:"pointer", boxShadow:"0 4px 14px rgba(140,51,34,0.3)" }}>
                 ✨ Generate Optimised Itinerary →
             </button>
@@ -354,37 +355,36 @@ function TripSettings({ plannerData, onSubmit }) {
 
 // ── Step 1: Itinerary Result ──────────────────────────────────────────────────
 function ItineraryResult({ result, onBack, onNewTrip }) {
-    const [openDay, setOpenDay] = useState(1);
-
-    // ── Fetch user's saved hotel + guide on mount ─────────────────────────────
+    const [openDay, setOpenDay] = useState(null);
     const [savedHotel, setSavedHotel] = useState(null);
     const [savedGuide, setSavedGuide] = useState(null);
 
     useEffect(() => {
-        // Get user's confirmed hotel (most recent)
         API.get("/hotels/saved")
             .then(r => setSavedHotel(r.data.saved_hotels?.[0] || null))
             .catch(() => {});
-        // Get user's confirmed guide booking
         API.get("/guides/booking")
             .then(r => setSavedGuide(r.data || null))
             .catch(() => {});
     }, []);
-    // ─────────────────────────────────────────────────────────────────────────
 
     const {
         ordered_clusters, route_summary, budget_breakdown,
         hotel_suggestions, n_days, total_distance_km
     } = result;
 
-    const allPositions = ordered_clusters.flatMap(day => day.locations.map(l => [l.lat, l.lng]));
+    const allPositions = ordered_clusters.flatMap(day =>
+        day.locations.map(l => [l.lat, l.lng])
+    );
 
     return (
         <div>
-            {/* Header */}
+            {/* ── Header ── */}
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:24 }}>
                 <div>
-                    <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, color:"#3E2723", marginBottom:4 }}>🎉 Your Optimised Itinerary</h2>
+                    <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, color:"#3E2723", marginBottom:4 }}>
+                        Your optimised itinerary
+                    </h2>
                     <p style={{ fontSize:13.5, color:"rgba(62,39,35,0.6)" }}>
                         {n_days}-day Sri Lanka trip · Starting from {route_summary?.starting_point}
                     </p>
@@ -396,29 +396,25 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
                     </button>
                     <button onClick={onNewTrip}
                             style={{ padding:"9px 16px", border:"none", borderRadius:10, background:"#8C3322", fontFamily:"'DM Sans',sans-serif", fontWeight:600, fontSize:12.5, color:"#fff", cursor:"pointer" }}>
-                        New Trip
+                        New trip
                     </button>
                 </div>
             </div>
 
-            {/* Map */}
-            <div style={{ borderRadius:14, overflow:"hidden", border:"1px solid rgba(45,74,71,0.15)", marginBottom:24, boxShadow:"0 4px 20px rgba(29,58,54,0.12)" }}>
+            {/* ── Full-width Map ── */}
+            <div style={{ borderRadius:14, overflow:"hidden", border:"1px solid #E8D5BC", marginBottom:20, boxShadow:"0 2px 12px rgba(62,39,35,0.08)", position:"relative", zIndex:1 }}>
                 <MapContainer
-                    bounds={[
-                        [5.9, 79.5],
-                        [9.9, 81.9]
-                    ]}
-                    maxBounds={[
-                        [5.5, 79.0],
-                        [10.2, 82.2]
-                    ]}
+                    center={[7.8731, 80.7718]}
+                    zoom={7}
+                    maxBounds={[[5.5, 79.0],[10.2, 82.2]]}
                     maxBoundsViscosity={1.0}
                     dragging={true}
                     scrollWheelZoom={false}
                     doubleClickZoom={false}
                     zoomControl={true}
-                    style={{ height:800, width:"100%" }}
-                >                   <TileLayer
+                    style={{ height:420, width:"100%" }}
+                >
+                    <TileLayer
                         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                         attribution='&copy; <a href="https://carto.com/">CARTO</a>'
                     />
@@ -427,10 +423,12 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
                         let globalStop = 0;
                         return ordered_clusters.map((day, dayIdx) => {
                             const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
-                            const pts   = day.locations.map(l => [l.lat, l.lng]);
+                            const pts = day.locations.map(l => [l.lat, l.lng]);
                             return (
                                 <div key={day.day_number}>
-                                    {pts.length > 1 && <Polyline positions={pts} color={color} weight={2.5} opacity={0.75} dashArray="6,4" />}
+                                    {pts.length > 1 && (
+                                        <Polyline positions={pts} color={color} weight={2.5} opacity={0.75} dashArray="6,4" />
+                                    )}
                                     {day.locations.map((loc, li) => {
                                         globalStop++;
                                         return (
@@ -440,8 +438,8 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
                                                         <strong>{loc.name}</strong>
                                                         <div style={{ fontSize:11, color:"#64748b", margin:"4px 0" }}>Day {day.day_number} · Stop {li+1}</div>
                                                         <div style={{ fontSize:11 }}>
-                                                            🕐 {loc.visit_duration_hours}h &nbsp;
-                                                            {loc.entry_fee_usd > 0 ? `💵 $${loc.entry_fee_usd}` : "💚 Free"}
+                                                            {loc.visit_duration_hours}h &nbsp;
+                                                            {loc.entry_fee_usd > 0 ? `$${loc.entry_fee_usd}` : "Free"}
                                                         </div>
                                                     </div>
                                                 </Popup>
@@ -455,54 +453,78 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
                 </MapContainer>
             </div>
 
-            {/* Main grid: day cards + sidebar */}
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 300px", gap:20, alignItems:"start" }}>
+            {/* ── Stats row — 4 columns full width ── */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:20 }}>
+                {[
+                    { v: n_days,                                                      l: "Days" },
+                    { v: result.total_locations,                                      l: "Locations" },
+                    { v: `${Math.round(total_distance_km)} km`,                       l: "Total route" },
+                    { v: `${Math.round(route_summary?.avg_daily_distance_km || 0)} km`, l: "Avg/day" },
+                ].map(({ v, l }) => (
+                    <div key={l} style={{ background:"#FDF5EE", border:"1px solid #E8D5BC", borderRadius:10, padding:"14px 10px", textAlign:"center" }}>
+                        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:20, color:"#8C3322", fontWeight:400 }}>{v}</div>
+                        <div style={{ fontSize:11, color:"rgba(62,39,35,0.55)", marginTop:3 }}>{l}</div>
+                    </div>
+                ))}
+            </div>
 
-                {/* ── Day cards ─────────────────────────────────────────── */}
-                <div>
+            {/* ── Day plan + Budget — 2 columns ── */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+
+                {/* Day cards */}
+                <div style={{ background:"#fff", border:"1px solid #E8D5BC", borderRadius:14, padding:20 }}>
+                    <p style={{ fontSize:11, fontWeight:600, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(62,39,35,0.5)", marginBottom:14 }}>
+                        Day-by-day plan
+                    </p>
                     {ordered_clusters.map(day => {
                         const isOpen = openDay === day.day_number;
-                        const color  = DAY_COLORS[(day.day_number-1) % DAY_COLORS.length];
+                        const color  = DAY_COLORS[(day.day_number - 1) % DAY_COLORS.length];
                         return (
-                            <div key={day.day_number} style={{ background:"#FFFFFF", border:"1px solid #E8D5BC", borderRadius:12, marginBottom:12, overflow:"hidden", color:"#3E2723", boxShadow:"0 2px 8px rgba(62,39,35,0.04)" }}>
-                                <div onClick={() => setOpenDay(isOpen ? null : day.day_number)}
-                                     style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", cursor:"pointer", background: isOpen ? "#FDF5EE" : "transparent" }}>
-                                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                                        <span style={{ background:"#8C3322", borderRadius:8, padding:"3px 12px", fontSize:11, fontWeight:700, color:"#fff" }}>Day {day.day_number}</span>
+                            <div key={day.day_number} style={{ border:"1px solid #E8D5BC", borderRadius:10, marginBottom:10, overflow:"hidden" }}>
+                                <div
+                                    onClick={() => setOpenDay(isOpen ? null : day.day_number)}
+                                    style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 14px", cursor:"pointer", background: isOpen ? "#FDF5EE" : "#fff" }}
+                                >
+                                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                                        <span style={{ background:"#8C3322", borderRadius:6, padding:"2px 10px", fontSize:11, fontWeight:600, color:"#fff" }}>
+                                            Day {day.day_number}
+                                        </span>
                                         <div>
-                                            <div style={{ fontWeight:600, fontSize:14 }}>{day.locations.map(l => l.name.split(" ")[0]).join(" · ")}</div>
-                                            <div style={{ fontSize:11, color:"rgba(62,39,35,0.5)", marginTop:2 }}>{day.locations.length} location{day.locations.length!==1?"s":""}</div>
+                                            <div style={{ fontWeight:600, fontSize:13, color:"#3E2723" }}>
+                                                {day.locations.map(l => l.name.split(" ")[0]).join(" · ")}
+                                            </div>
+                                            <div style={{ fontSize:11, color:"rgba(62,39,35,0.5)", marginTop:1 }}>
+                                                {day.locations.length} location{day.locations.length !== 1 ? "s" : ""}
+                                            </div>
                                         </div>
                                     </div>
-                                    <div style={{ display:"flex", alignItems:"center", gap:18 }}>
-                                        <div style={{ textAlign:"center" }}>
-                                            <div style={{ fontWeight:700 }}>{day.total_visit_hours}h</div>
-                                            <div style={{ fontSize:10, color:"rgba(62,39,35,0.45)" }}>Visit</div>
-                                        </div>
-                                        <div style={{ textAlign:"center" }}>
-                                            <div style={{ fontWeight:700 }}>${day.total_entry_fees_usd}</div>
-                                            <div style={{ fontSize:10, color:"rgba(62,39,35,0.45)" }}>Fees</div>
-                                        </div>
-                                        <span style={{ color:"rgba(62,39,35,0.4)", fontSize:12 }}>{isOpen ? "▲" : "▼"}</span>
+                                    <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                                        <span style={{ fontSize:12, color:"rgba(62,39,35,0.6)" }}>{day.total_visit_hours}h</span>
+                                        <span style={{ fontSize:12, color:"rgba(62,39,35,0.6)" }}>${day.total_entry_fees_usd}</span>
+                                        <span style={{ fontSize:11, color:"rgba(62,39,35,0.4)" }}>{isOpen ? "▲" : "▼"}</span>
                                     </div>
                                 </div>
 
                                 {isOpen && (
-                                    <div style={{ padding:"0 20px 20px", borderTop:"1px solid #E8D5BC" }}>
+                                    <div style={{ padding:"0 14px 14px", borderTop:"1px solid #E8D5BC", background:"#fff" }}>
                                         {day.locations.map((loc, li) => (
-                                            <div key={li} style={{ display:"flex", gap:14, padding:"13px 0", borderBottom: li<day.locations.length-1 ? "1px solid #E8D5BC" : "none" }}>
-                                                <div style={{ width:24, height:24, borderRadius:"50%", background:color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:11, color:"#fff", flexShrink:0, marginTop:2 }}>{li+1}</div>
+                                            <div key={li} style={{ display:"flex", gap:12, padding:"10px 0", borderBottom: li < day.locations.length - 1 ? "1px solid #F0E6D6" : "none" }}>
+                                                <div style={{ width:22, height:22, borderRadius:"50%", background:color, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:10, color:"#fff", flexShrink:0, marginTop:2 }}>
+                                                    {li + 1}
+                                                </div>
                                                 <div style={{ flex:1 }}>
-                                                    <div style={{ fontWeight:600, marginBottom:3 }}>{loc.name}</div>
-                                                    <div style={{ fontSize:12, color:"rgba(62,39,35,0.6)", marginBottom:6 }}>{loc.description}</div>
-                                                    <div style={{ display:"flex", gap:12, fontSize:11, color:"rgba(62,39,35,0.5)" }}>
-                                                        <span>🕐 {loc.visit_duration_hours}h</span>
-                                                        <span style={{ color:"#8C3322", fontWeight:600 }}>{loc.entry_fee_usd>0 ? `💵 $${loc.entry_fee_usd}` : "💚 Free"}</span>
-                                                        {loc.best_time && <span>⏰ Best: {loc.best_time}</span>}
+                                                    <div style={{ fontWeight:600, fontSize:13, color:"#3E2723", marginBottom:2 }}>{loc.name}</div>
+                                                    <div style={{ fontSize:11, color:"rgba(62,39,35,0.55)", marginBottom:5 }}>{loc.description}</div>
+                                                    <div style={{ display:"flex", gap:10, fontSize:11, color:"rgba(62,39,35,0.5)" }}>
+                                                        <span>{loc.visit_duration_hours}h</span>
+                                                        <span style={{ color:"#8C3322", fontWeight:600 }}>
+                                                            {loc.entry_fee_usd > 0 ? `$${loc.entry_fee_usd}` : "Free"}
+                                                        </span>
+                                                        {loc.best_time && <span>Best: {loc.best_time}</span>}
                                                     </div>
                                                     {loc.tags?.length > 0 && (
-                                                        <div style={{ marginTop:8, display:"flex", gap:5, flexWrap:"wrap" }}>
-                                                            {loc.tags.slice(0,3).map(t => (
+                                                        <div style={{ marginTop:6, display:"flex", gap:5, flexWrap:"wrap" }}>
+                                                            {loc.tags.slice(0, 3).map(t => (
                                                                 <span key={t} style={{ background:"#F9F6F0", borderRadius:4, padding:"2px 7px", fontSize:10, color:"#8C3322", border:"1px solid #E8D5BC" }}>{t}</span>
                                                             ))}
                                                         </div>
@@ -511,18 +533,24 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
                                             </div>
                                         ))}
 
-                                        {/* Hotel suggestion for this day */}
-                                        {hotel_suggestions?.[day.day_number-1]?.hotel && (
-                                            <div style={{ marginTop:14, background:"rgba(212,163,115,0.1)", border:"1px solid #D4A373", borderRadius:10, padding:"12px 14px" }}>
-                                                <div style={{ fontSize:10, fontWeight:700, color:"rgba(140,51,34,0.7)", marginBottom:6 }}>🏨 SUGGESTED STAY</div>
+                                        {/* Hotel suggestion */}
+                                        {hotel_suggestions?.[day.day_number - 1]?.hotel && (
+                                            <div style={{ marginTop:12, background:"rgba(212,163,115,0.1)", border:"1px solid #D4A373", borderRadius:8, padding:"10px 12px" }}>
+                                                <div style={{ fontSize:10, fontWeight:600, color:"rgba(140,51,34,0.7)", marginBottom:5, textTransform:"uppercase", letterSpacing:"0.08em" }}>
+                                                    Suggested stay
+                                                </div>
                                                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                                                     <div>
-                                                        <div style={{ fontWeight:600, fontSize:13 }}>{hotel_suggestions[day.day_number-1].hotel.name}</div>
-                                                        <div style={{ fontSize:11, color:"rgba(62,39,35,0.55)" }}>{hotel_suggestions[day.day_number-1].hotel.type} · ⭐ {hotel_suggestions[day.day_number-1].hotel.rating}</div>
+                                                        <div style={{ fontWeight:600, fontSize:12, color:"#3E2723" }}>
+                                                            {hotel_suggestions[day.day_number - 1].hotel.name}
+                                                        </div>
+                                                        <div style={{ fontSize:11, color:"rgba(62,39,35,0.55)" }}>
+                                                            ⭐ {hotel_suggestions[day.day_number - 1].hotel.rating}
+                                                        </div>
                                                     </div>
-                                                    <div style={{ textAlign:"right" }}>
-                                                        <div style={{ fontWeight:700, color:"#8C3322", fontSize:14 }}>${hotel_suggestions[day.day_number-1].hotel.price_per_night}</div>
-                                                        <div style={{ fontSize:10, color:"rgba(62,39,35,0.4)" }}>per night</div>
+                                                    <div style={{ fontWeight:700, color:"#8C3322", fontSize:13 }}>
+                                                        ${hotel_suggestions[day.day_number - 1].hotel.price_per_night}
+                                                        <span style={{ fontSize:10, color:"rgba(62,39,35,0.4)", fontWeight:400 }}>/night</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -534,76 +562,95 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
                     })}
                 </div>
 
-                {/* ── Sidebar ───────────────────────────────────────────── */}
-                <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-
-                    {/* Stats */}
-                    <div style={{ background:"#FFFFFF", border:"1px solid #E8D5BC", borderRadius:12, padding:20, color:"#3E2723", boxShadow:"0 2px 8px rgba(62,39,35,0.04)" }}>
-                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                            {[
-                                { v: n_days,                                            l: "Days" },
-                                { v: result.total_locations,                            l: "Locations" },
-                                { v: `${Math.round(total_distance_km)} km`,             l: "Total Route" },
-                                { v: `${Math.round(route_summary?.avg_daily_distance_km||0)} km`, l: "Avg/Day" },
-                            ].map(({ v, l }) => (
-                                <div key={l} style={{ background:"#F9F6F0", border:"1px solid #E8D5BC", borderRadius:8, padding:"12px 8px", textAlign:"center" }}>
-                                    <div style={{ fontFamily:"'Playfair Display',serif", fontSize:16, color:"#8C3322" }}>{v}</div>
-                                    <div style={{ fontSize:10, color:"rgba(62,39,35,0.55)", marginTop:2 }}>{l}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Budget breakdown */}
+                {/* Budget + saved notice */}
+                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                     {budget_breakdown && (
-                        <div style={{ background:"#FFFFFF", border:"1px solid #E8D5BC", borderRadius:12, padding:20, color:"#3E2723", boxShadow:"0 2px 8px rgba(62,39,35,0.04)" }}>
-                            <div style={{ fontWeight:700, marginBottom:14, fontSize:13 }}>💰 Budget Breakdown</div>
+                        <div style={{ background:"#fff", border:"1px solid #E8D5BC", borderRadius:14, padding:20 }}>
+                            <p style={{ fontSize:11, fontWeight:600, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(62,39,35,0.5)", marginBottom:14 }}>
+                                Budget breakdown
+                            </p>
                             {[
-                                ["🏨 Accommodation", budget_breakdown.accommodation_usd],
-                                ["🎟️ Entry Fees",    budget_breakdown.entry_fees_usd],
-                                ["🍽️ Food (est.)",   budget_breakdown.food_estimate_usd],
-                                ["🚗 Transport",     budget_breakdown.transport_estimate_usd],
+                                ["Accommodation", budget_breakdown.accommodation_usd],
+                                ["Entry fees",    budget_breakdown.entry_fees_usd],
+                                ["Food (est.)",   budget_breakdown.food_estimate_usd],
+                                ["Transport",     budget_breakdown.transport_estimate_usd],
                             ].map(([label, val]) => (
-                                <div key={label} style={{ display:"flex", justifyContent:"space-between", fontSize:12.5, marginBottom:8, color:"rgba(62,39,35,0.7)" }}>
+                                <div key={label} style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:9, color:"rgba(62,39,35,0.7)" }}>
                                     <span>{label}</span>
                                     <strong style={{ color:"#3E2723" }}>${val}</strong>
                                 </div>
                             ))}
-                            <div style={{ height:6, background:"#F9F6F0", border:"1px solid #E8D5BC", borderRadius:3, margin:"12px 0 8px", overflow:"hidden", position:"relative" }}>
-                                <div style={{ height:"100%", borderRadius:3, background: budget_breakdown.within_budget ? "rgba(74,93,35,0.8)" : "#8C3322", width:`${Math.min((budget_breakdown.total_estimate_usd/budget_breakdown.budget_provided_usd)*100,100)}%` }} />
+                            <div style={{ height:5, background:"#F9F6F0", border:"1px solid #E8D5BC", borderRadius:3, margin:"12px 0 10px", overflow:"hidden" }}>
+                                <div style={{
+                                    height:"100%", borderRadius:3,
+                                    background: budget_breakdown.within_budget ? "#4A5D23" : "#8C3322",
+                                    width:`${Math.min((budget_breakdown.total_estimate_usd / budget_breakdown.budget_provided_usd) * 100, 100)}%`
+                                }} />
                             </div>
-                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:12 }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:13 }}>
                                 <strong style={{ color:"#8C3322" }}>${Math.round(budget_breakdown.total_estimate_usd)} est.</strong>
-                                <span style={{ color: budget_breakdown.within_budget ? "#4A5D23" : "#8C3322", fontWeight:600 }}>
+                                <span style={{ color: budget_breakdown.within_budget ? "#4A5D23" : "#8C3322", fontWeight:600, fontSize:12 }}>
                                     {budget_breakdown.within_budget ? "✓ Within budget" : "⚠ Over budget"}
                                 </span>
                             </div>
                         </div>
                     )}
 
-                    {/* Saved to My Trips notice */}
                     {result.saved_itinerary_id && (
-                        <div style={{ background:"rgba(74,93,35,0.1)", border:"1px solid rgba(74,93,35,0.3)", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#4A5D23", textAlign:"center" }}>
+                        <div style={{ background:"rgba(74,93,35,0.08)", border:"1px solid rgba(74,93,35,0.25)", borderRadius:10, padding:"12px 16px", fontSize:13, color:"#4A5D23", textAlign:"center" }}>
                             ✅ Saved to My Trips (ID #{result.saved_itinerary_id})
                         </div>
                     )}
-
-                    {/* ── Your saved hotel from selected_hotels table ──── */}
-                    <SavedHotelCard hotel={savedHotel} />
-
-                    {/* ── Your saved guide from selected_guides table ───── */}
-                    <SavedGuideCard guide={savedGuide} />
-
-                    {/* ── Inline feedback form ──────────────────────────── */}
-                    {result.saved_itinerary_id && (
-                        <FeedbackForm itineraryId={result.saved_itinerary_id} />
-                    )}
-
                 </div>
-                {/* end sidebar */}
-
             </div>
-            {/* end main grid */}
+
+            {/* ── Hotel + Guide — side by side ── */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+
+                {savedHotel && (
+                    <div style={{ background:"#fff", border:"1px solid #E8D5BC", borderRadius:14, padding:20 }}>
+                        <p style={{ fontSize:11, fontWeight:600, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(62,39,35,0.5)", marginBottom:12 }}>
+                            Your booked hotel
+                        </p>
+                        <p style={{ fontWeight:600, fontSize:15, color:"#3E2723", marginBottom:4 }}>{savedHotel.name}</p>
+                        <p style={{ fontSize:12, color:"rgba(62,39,35,0.6)", marginBottom:4 }}>📍 {savedHotel.location}</p>
+                        {(savedHotel.check_in || savedHotel.check_out) && (
+                            <p style={{ fontSize:11, color:"rgba(62,39,35,0.45)", marginBottom:10 }}>
+                                {savedHotel.check_in && `In: ${savedHotel.check_in}`}
+                                {savedHotel.check_out && `  ·  Out: ${savedHotel.check_out}`}
+                            </p>
+                        )}
+                        <p style={{ fontWeight:700, color:"#8C3322", fontSize:15, margin:0 }}>
+                            {fmtLKR(savedHotel.total_budget)}
+                            <span style={{ fontSize:11, color:"rgba(62,39,35,0.45)", fontWeight:400 }}> / ~{fmtUSD(lkrToUsd(savedHotel.total_budget))}</span>
+                        </p>
+                    </div>
+                )}
+
+                {savedGuide && savedGuide.current_status === "confirmed" && (
+                    <div style={{ background:"#fff", border:"1px solid #E8D5BC", borderRadius:14, padding:20 }}>
+                        <p style={{ fontSize:11, fontWeight:600, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(62,39,35,0.5)", marginBottom:12 }}>
+                            Your booked guide
+                        </p>
+                        <p style={{ fontWeight:600, fontSize:15, color:"#3E2723", marginBottom:4 }}>{savedGuide.name}</p>
+                        <p style={{ fontSize:12, color:"rgba(62,39,35,0.6)", marginBottom:4 }}>
+                            {savedGuide.language} · 📍 {savedGuide.base_location}
+                        </p>
+                        <p style={{ fontSize:11, color:"rgba(62,39,35,0.45)", marginBottom:10 }}>
+                            ⭐ {savedGuide.rating} · LKR {Number(savedGuide.daily_rate).toLocaleString()}/day
+                        </p>
+                        <p style={{ fontWeight:700, color:"#8C3322", fontSize:15, margin:0 }}>
+                            {fmtLKR(savedGuide.estimated_budget)}
+                            <span style={{ fontSize:11, color:"rgba(62,39,35,0.45)", fontWeight:400 }}> / ~{fmtUSD(lkrToUsd(savedGuide.estimated_budget))}</span>
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            {/* ── Rating form — full width ── */}
+            {result.saved_itinerary_id && (
+                <FeedbackForm itineraryId={result.saved_itinerary_id} />
+            )}
         </div>
     );
 }

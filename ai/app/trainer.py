@@ -1,6 +1,7 @@
 from sqlalchemy import text
 from policy_store import load_policy, save_policy
 from bandit import beta_update
+from mapping import normalize_personality   # ← add this import
 
 # Default arms — one entry per itinerary type
 DEFAULT_ARMS = {
@@ -36,7 +37,9 @@ def train_from_db(db, limit: int = 5000) -> dict:
     rows = db.execute(q, {"limit": limit}).fetchall()
 
     for cluster_label, itinerary_type, reward in rows:
-        cluster = (cluster_label  or "unknown").strip().lower()
+    # normalize_personality handles all variants:
+    # "calm and relaxed", "calm & relaxed", "Calm and Relaxed" → "calm & relaxed"
+        cluster = normalize_personality(cluster_label)   # ← was: .strip().lower()
         arm     = (itinerary_type or "unknown").strip().lower()
         r       = float(reward) if reward is not None else 0.0
 

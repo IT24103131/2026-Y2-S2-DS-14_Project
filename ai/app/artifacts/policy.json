@@ -1,8 +1,8 @@
 {
   "balanced traveler": {
     "peaceful": {
-      "alpha": 1.0,
-      "beta": 1.0
+      "alpha": 2.4000000000000004,
+      "beta": 1.5999999999999999
     },
     "cultural": {
       "alpha": 1.0,
@@ -53,8 +53,8 @@
       "beta": 1.0
     },
     "adventure": {
-      "alpha": 37.20000000000002,
-      "beta": 10.800000000000004
+      "alpha": 64.20000000000003,
+      "beta": 28.799999999999997
     },
     "beach": {
       "alpha": 1.0,
@@ -97,30 +97,8 @@
       "beta": 1.0
     },
     "cultural": {
-      "alpha": 2.2,
-      "beta": 1.7999999999999998
-    },
-    "adventure": {
-      "alpha": 1.0,
-      "beta": 1.0
-    },
-    "beach": {
-      "alpha": 1.0,
-      "beta": 1.0
-    },
-    "budget": {
-      "alpha": 1.0,
-      "beta": 1.0
-    }
-  },
-  "calm and relaxed": {
-    "cultural": {
-      "alpha": 1.0,
-      "beta": 1.0
-    },
-    "peaceful": {
-      "alpha": 1.0,
-      "beta": 1.0
+      "alpha": 7.599999999999998,
+      "beta": 5.4
     },
     "adventure": {
       "alpha": 1.0,

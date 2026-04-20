@@ -1,242 +1,255 @@
 """
 guide_recommender.py  —  backend/
-Ranks guides using the trained Random Forest model (25 features).
+Ranks guides using the new RF model + cosine OCEAN similarity + vibe compatibility.
 
-Now that the guide table has all 25 feature columns, this file reads
-REAL values from the DB instead of using hardcoded defaults.
+Model files required in backend/:
+    rf_model.pkl   — Random Forest classifier (13 features, 3 tiers)
+    scaler.pkl     — StandardScaler fitted on same 13 features
+    metadata.json  — vibe_map, spec_map, type_map, features list
 
-Place rf_model.pkl, scaler.pkl, encoder_maps.json in backend/ alongside this file.
+Called by guide_routes.py with:
+    get_top_guides(guides_list, user_ocean, duration=N, top_n=3)
+
+user_ocean keys: "openness", "conscientiousness", "extraversion",
+                 "agreeableness", "neuroticism"  (0–10 scale from quiz)
 """
 
 import json
 import pickle
-import re
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from sklearn.metrics.pairwise import cosine_similarity
 
-# ── Load model artefacts from backend/ ───────────────────────────────────────
+# ── Load model artefacts ──────────────────────────────────────────────────────
 _DIR = Path(__file__).resolve().parent   # = backend/
 
-with open(_DIR / "rf_model.pkl", "rb") as f:
-    RF_MODEL = pickle.load(f)
-
-with open(_DIR / "scaler.pkl", "rb") as f:
-    SCALER = pickle.load(f)
-
-with open(_DIR / "encoder_maps.json", "r") as f:
-    ENC = json.load(f)
-
-VIBE_MATCH_BONUS = 25
-
-# ── Vibe label normalisation ──────────────────────────────────────────────────
-# encoder_maps.json uses Title Case ("Balanced Traveller" / "Calm and Relaxed")
-# Your system uses lowercase with & ("balanced traveler" / "calm & relaxed")
-# We normalise both directions so comparisons work correctly.
-
-# encoder key → your system lowercase
-_VIBE_NORMALISE = {
-    "Calm and Relaxed":     "calm & relaxed",
-    "Adventurous Explorer": "adventurous explorer",
-    "Balanced Traveller":   "balanced traveler",
-    "Organized Sightseer":  "organized sightseer",
-    "Friendly Cultural":    "friendly cultural",
-}
-# your system lowercase → encoder key (for encoding lookup)
-_VIBE_TO_ENC = {v: k for k, v in _VIBE_NORMALISE.items()}
-
-# specialization + tourist_type_preference defaults (for any NULL in DB)
-_DEFAULT_SPEC = "Cultural"
-_DEFAULT_PREF = "All"
+try:
+    with open(_DIR / "rf_model.pkl", "rb") as f:
+        RF_MODEL = pickle.load(f)
+    with open(_DIR / "scaler.pkl", "rb") as f:
+        SCALER = pickle.load(f)
+    with open(_DIR / "metadata.json", "r") as f:
+        META = json.load(f)
+    print("[guide_recommender] ✅ RF model, scaler, and metadata loaded.")
+except FileNotFoundError as e:
+    print(f"[guide_recommender] ❌ Model file missing: {e}")
+    RF_MODEL = SCALER = META = None
 
 
-def _compute_vibe_label(o: float, e: float, a: float, n: float) -> str:
+# ── Vibe label: computed from OCEAN since it is not stored in the DB ──────────
+def compute_vibe_label(o: float, e: float, a: float, n: float) -> str:
     """
-    Derives vibe label from OCEAN scores (0-10 scale).
-    Returns lowercase to match users.cluster_label.
+    Derives the Title-Case vibe label that matches metadata.json keys.
+    Input scores are on 0–10 scale (as stored in quiz_result).
     """
     adv = (o + e) / 2
-    if adv >= 7.5:  return "adventurous explorer"
-    if a >= 7.5:    return "friendly cultural"
-    if n <= 3.0:    return "calm & relaxed"
-    if adv >= 6.0:  return "balanced traveler"
-    return "organized sightseer"
+    if adv >= 7.5:   return "Adventurous Explorer"
+    elif a >= 7.5:   return "Friendly Cultural"
+    elif n <= 3.0:   return "Calm and Relaxed"
+    elif adv >= 6.0: return "Balanced Traveller"
+    else:            return "Organized Sightseer"
 
 
-def _user_vibe_label(user_ocean: dict) -> str:
-    return _compute_vibe_label(
-        o=float(user_ocean.get("openness", 5)),
-        e=float(user_ocean.get("extraversion", 5)),
-        a=float(user_ocean.get("agreeableness", 5)),
-        n=float(user_ocean.get("neuroticism", 5)),
+# ── Vibe compatibility matrix ─────────────────────────────────────────────────
+VIBE_COMPAT = {
+    'Calm and Relaxed': {
+        'Calm and Relaxed'    : 0.7,
+        'Adventurous Explorer': 0.2,
+        'Balanced Traveller'  : 0.7,
+        'Organized Sightseer' : 0.5,
+        'Friendly Cultural'   : 0.7,
+    },
+    'Adventurous Explorer': {
+        'Calm and Relaxed'    : 0.5,
+        'Adventurous Explorer': 0.7,
+        'Balanced Traveller'  : 1.0,
+        'Organized Sightseer' : 0.5,
+        'Friendly Cultural'   : 0.5,
+    },
+    'Balanced Traveller': {
+        'Calm and Relaxed'    : 0.7,
+        'Adventurous Explorer': 0.7,
+        'Balanced Traveller'  : 1.0,
+        'Organized Sightseer' : 0.7,
+        'Friendly Cultural'   : 0.7,
+    },
+    'Organized Sightseer': {
+        'Calm and Relaxed'    : 0.2,
+        'Adventurous Explorer': 0.5,
+        'Balanced Traveller'  : 0.7,
+        'Organized Sightseer' : 1.0,
+        'Friendly Cultural'   : 0.5,
+    },
+    'Friendly Cultural': {
+        'Calm and Relaxed'    : 0.7,
+        'Adventurous Explorer': 0.5,
+        'Balanced Traveller'  : 0.7,
+        'Organized Sightseer' : 0.5,
+        'Friendly Cultural'   : 1.0,
+    },
+}
+
+
+def _get_vibe_compat(tourist_vibe: str, guide_vibe: str) -> float:
+    return VIBE_COMPAT.get(tourist_vibe, {}).get(guide_vibe, 0.5)
+
+
+# ── Map your personality_type strings → Title Case vibe labels ────────────────
+# guide_routes passes personality_type from quiz_result e.g. "calm & relaxed"
+# metadata.json and VIBE_COMPAT use Title Case e.g. "Calm and Relaxed"
+_PTYPE_TO_VIBE = {
+    "calm & relaxed"      : "Calm and Relaxed",
+    "calm and relaxed"    : "Calm and Relaxed",
+    "adventurous explorer": "Adventurous Explorer",
+    "balanced traveler"   : "Balanced Traveller",
+    "balanced traveller"  : "Balanced Traveller",
+    "organized sightseer" : "Organized Sightseer",
+    "friendly cultural"   : "Friendly Cultural",
+}
+
+def _normalise_user_vibe(personality_type: str) -> str:
+    """Convert quiz personality_type string to the Title Case used in metadata."""
+    return _PTYPE_TO_VIBE.get(
+        (personality_type or "").strip().lower(),
+        "Balanced Traveller"   # safe default
     )
 
 
-def _guide_vibe_label(guide: dict) -> str:
-    return _compute_vibe_label(
-        o=float(guide.get("openness_score") or 5),
-        e=float(guide.get("extraversion_score") or 5),
-        a=float(guide.get("agreeableness_score") or 5),
-        n=float(guide.get("neuroticism_score") or 5),
-    )
-
-
-def _build_feature_row(guide: dict) -> dict:
+# ── Main ranking function ─────────────────────────────────────────────────────
+def get_top_guides(
+        guides: list,
+        user_ocean: dict,
+        duration: int = 3,
+        top_n: int = 3,
+        # guide_routes does NOT pass user_vibe — we derive it from user_ocean
+        user_vibe: str = None,
+) -> list:
     """
-    Builds the 25-feature row the RF model expects.
-    ALL features now read from REAL guide DB columns.
-    Falls back to sensible defaults only if a column is NULL.
+    Rank guides using:
+      A) Cosine similarity on OCEAN scores          (weight 0.50)
+      B) RF model quality tier probability          (weight 0.30)
+      C) Vibe compatibility matrix                  (weight 0.20)
+
+    Parameters
+    ----------
+    guides     : list of dicts from _row_to_guide_dict() in guide_routes.py
+                 Keys: openness_score, conscientiousness_score, extraversion_score,
+                       agreeableness_score, neuroticism_score, daily_rate,
+                       certified, award_or_recognition, years_of_experience,
+                       specialization, guide_id, name, base_location, etc.
+
+    user_ocean : dict with keys "openness", "conscientiousness", "extraversion",
+                 "agreeableness", "neuroticism"  (0–10 scale)
+
+    duration   : trip duration in days (used to calculate estimated_budget)
+    top_n      : how many top guides to return
+    user_vibe  : optional override; if None, derived from user_ocean
     """
-    # ── Core columns (always present) ────────────────────────────────────────
-    rating  = float(guide.get("rating") or 3.5)
-    daily   = float(guide.get("daily_rate") or 8000)
-    o       = float(guide.get("openness_score") or 5)
-    c       = float(guide.get("conscientiousness_score") or 5)
-    e       = float(guide.get("extraversion_score") or 5)
-    a       = float(guide.get("agreeableness_score") or 5)
-    n       = float(guide.get("neuroticism_score") or 5)
 
-    # ── New columns — read from DB, fall back to defaults only if NULL ───────
-    exp     = float(guide.get("years_of_experience") or 5)
-    repeat  = float(guide.get("repeat_client_rate") or 60.0)
-    avg_dur = float(guide.get("avg_tour_duration") or 3.0)
-    loc_cov = float(guide.get("locations_covered") or 3)
-    n_lang  = float(guide.get("number_of_languages") or 1)
-    cert    = float(guide.get("certified") or 0)
-    award   = float(guide.get("award_or_recognition") or 0)
-    vehicle = float(guide.get("has_vehicle") or 0)  # not in schema → always 0
-
-    # Language spoken → binary flags
-    lang = str(guide.get("language_spoken") or "")
-    speaks_english = 1.0 if "English" in lang else 0.0
-    speaks_sinhala = 1.0 if "Sinhala" in lang else 0.0
-    speaks_tamil   = 1.0 if "Tamil"   in lang else 0.0
-
-    # Specialization encoding
-    spec_raw = str(guide.get("specialization") or _DEFAULT_SPEC)
-    spec_enc = float(ENC["Specialization"].get(spec_raw, ENC["Specialization"][_DEFAULT_SPEC]))
-
-    # Tourist type preference encoding
-    pref_raw = str(guide.get("tourist_type_preference") or _DEFAULT_PREF)
-    pref_enc = float(ENC["Tourist_Type_Preference"].get(pref_raw, ENC["Tourist_Type_Preference"][_DEFAULT_PREF]))
-
-    # Vibe encoding — guide's own vibe (set by _guide_vibe_label before this call)
-    vibe_lower = guide.get("vibe_label", "balanced traveler")
-    vibe_title = _VIBE_TO_ENC.get(vibe_lower, "Balanced Traveller")
-    vibe_enc   = float(ENC["Vibe"].get(vibe_title, 2))
-
-    # Derived features (same formulas as the training notebook)
-    value_score     = round(rating / (daily / 1000), 4) if daily > 0 else 0.0
-    demand_index    = round(rating * 100, 2)
-    reliability     = round((repeat / 100) * (rating / 5) * 100, 2)
-    ocean_adv_index = round((o + e) / 2, 2)
-
-    return {
-        "Rating_Out_of_5":          rating,
-        "Price_Per_Day_LKR":        daily,
-        "Vibe":                     vibe_enc,
-        "OCEAN_Openness":           o,
-        "OCEAN_Conscientiousness":  c,
-        "OCEAN_Extraversion":       e,
-        "OCEAN_Agreeableness":      a,
-        "OCEAN_Neuroticism":        n,
-        "Years_of_Experience":      exp,
-        "Number_of_Languages":      n_lang,
-        "Specialization":           spec_enc,
-        "Certified":                cert,
-        "Repeat_Client_Rate_%":     repeat,
-        "Has_Vehicle":              vehicle,   # always 0 — not in your DB
-        "Avg_Tour_Duration_Days":   avg_dur,
-        "Locations_Covered":        loc_cov,
-        "Award_or_Recognition":     award,
-        "Tourist_Type_Preference":  pref_enc,
-        "Value_Score":              value_score,
-        "Demand_Index":             demand_index,
-        "Reliability_Score":        reliability,
-        "OCEAN_Adventure_Index":    ocean_adv_index,
-        "Speaks_English":           speaks_english,
-        "Speaks_Sinhala":           speaks_sinhala,
-        "Speaks_Tamil":             speaks_tamil,
-    }
-
-
-def _scale_and_assemble(rows: list) -> pd.DataFrame:
-    df_full = pd.DataFrame(rows, columns=RF_MODEL.feature_names_in_)
-    scaler_cols = list(SCALER.feature_names_in_)
-    df_full[scaler_cols] = SCALER.transform(df_full[scaler_cols])
-    return df_full
-
-
-def _ocean_similarity(user_ocean: dict, guide: dict) -> float:
-    u_o = float(user_ocean.get("openness", 5))
-    u_c = float(user_ocean.get("conscientiousness", 5))
-    u_e = float(user_ocean.get("extraversion", 5))
-    u_a = float(user_ocean.get("agreeableness", 5))
-    u_n = float(user_ocean.get("neuroticism", 5))
-    g_o = float(guide.get("openness_score") or 5)
-    g_c = float(guide.get("conscientiousness_score") or 5)
-    g_e = float(guide.get("extraversion_score") or 5)
-    g_a = float(guide.get("agreeableness_score") or 5)
-    g_n = float(guide.get("neuroticism_score") or 5)
-    # Invert neuroticism: calm user matches calm guide
-    u_n_inv, g_n_inv = 10 - u_n, 10 - g_n
-    dist = np.sqrt(
-        (u_o - g_o)**2 + (u_c - g_c)**2 + (u_e - g_e)**2 +
-        (u_a - g_a)**2 + (u_n_inv - g_n_inv)**2
-    )
-    return max(0.0, round((1 - dist / np.sqrt(5 * 100)) * 100, 2))
-
-
-def get_top_guides(guides: list, user_ocean: dict, duration=3, top_n: int = 3) -> list:
-    """
-    Ranks guides: RF tier * 40 + OCEAN similarity * 0.6 + vibe bonus (25)
-    """
-    if not guides:
+    if not guides or RF_MODEL is None:
         return []
+
     try:
         duration = int(duration)
     except (ValueError, TypeError):
-        nums = re.findall(r"\d+", str(duration))
-        duration = int(nums[0]) if nums else 3
+        duration = 3
 
-    user_vibe = _user_vibe_label(user_ocean)
+    # ── Extract user OCEAN as a vector (0–10 scale) ───────────────────────────
+    o_u = float(user_ocean.get("openness",          0))
+    c_u = float(user_ocean.get("conscientiousness",  0))
+    e_u = float(user_ocean.get("extraversion",       0))
+    a_u = float(user_ocean.get("agreeableness",      0))
+    n_u = float(user_ocean.get("neuroticism",        0))
+    u_vec = np.array([[o_u, c_u, e_u, a_u, n_u]])
 
-    for g in guides:
-        g["vibe_label"] = _guide_vibe_label(g)
-
-    rows  = [_build_feature_row(g) for g in guides]
-    X_df  = _scale_and_assemble(rows)
-    tiers = RF_MODEL.predict(X_df)
+    # ── Derive user vibe label ────────────────────────────────────────────────
+    if user_vibe:
+        resolved_user_vibe = _normalise_user_vibe(user_vibe)
+    else:
+        resolved_user_vibe = compute_vibe_label(o=o_u, e=e_u, a=a_u, n=n_u)
 
     results = []
-    for i, guide in enumerate(guides):
-        ocean_sim   = _ocean_similarity(user_ocean, guide)
-        tier        = int(tiers[i])
-        vibe_bonus  = VIBE_MATCH_BONUS if guide["vibe_label"] == user_vibe else 0
-        final_score = round(tier * 40 + ocean_sim * 0.6 + vibe_bonus, 2)
+
+    for g in guides:
+        o = float(g.get("openness_score")          or 0)
+        c = float(g.get("conscientiousness_score")  or 0)
+        e = float(g.get("extraversion_score")       or 0)
+        a = float(g.get("agreeableness_score")      or 0)
+        n = float(g.get("neuroticism_score")        or 0)
+
+        # ── A: OCEAN cosine similarity ────────────────────────────────────────
+        g_vec      = np.array([[o, c, e, a, n]])
+        match_score = float(cosine_similarity(u_vec, g_vec)[0][0])
+
+        # ── Derive guide vibe from its OCEAN scores ───────────────────────────
+        guide_vibe = compute_vibe_label(o=o, e=e, a=a, n=n)
+
+        # ── B: RF quality tier ────────────────────────────────────────────────
+        feature_data = {
+            'Vibe_Enc'               : META['vibe_map'].get(guide_vibe, 2),
+            'Specialization_Enc'     : META['spec_map'].get(
+                g.get('specialization', 'Cultural'), 1),
+            'Tourist_Type_Enc'       : META['type_map'].get(
+                g.get('tourist_type_preference', 'All'), 3),
+            'OCEAN_Openness'         : o,
+            'OCEAN_Conscientiousness': c,
+            'OCEAN_Extraversion'     : e,
+            'OCEAN_Agreeableness'    : a,
+            'OCEAN_Neuroticism'      : n,
+            'Price_Per_Day_LKR'      : float(g.get("daily_rate")          or 8000),
+            'Certified'              : int(g.get("certified")             or 0),
+            'Has_Vehicle'            : 0,   # not in DB — permanent default
+            'Award_or_Recognition'   : int(g.get("award_or_recognition")  or 0),
+            'Years_of_Experience'    : float(g.get("years_of_experience") or 2),
+        }
+
+        input_df       = pd.DataFrame([feature_data])[META['features']]
+        input_scaled   = SCALER.transform(input_df)
+        quality_score  = float(RF_MODEL.predict_proba(input_scaled)[0][2])
+        predicted_tier = int(RF_MODEL.predict(input_scaled)[0])
+
+        # ── C: Vibe compatibility ─────────────────────────────────────────────
+        vibe_compat = _get_vibe_compat(resolved_user_vibe, guide_vibe)
+
+        # ── Hybrid final score ────────────────────────────────────────────────
+        final_score = round(
+            (match_score   * 0.50) +
+            (quality_score * 0.30) +
+            (vibe_compat   * 0.20),
+            4
+        )
+
+        daily_rate      = float(g.get("daily_rate") or 0)
+        estimated_budget = round(daily_rate * duration, 2)
 
         results.append({
-            "guide_id":                guide["guide_id"],
-            "name":                    guide["name"],
-            "base_location":           guide.get("base_location", ""),
-            "daily_rate":              float(guide.get("daily_rate", 0)),
-            "language_spoken":         guide.get("language_spoken", ""),
-            "rating":                  float(guide.get("rating", 0)),
-            "status":                  guide.get("status", "available"),
-            "predicted_tier":          tier,
-            "tier_label":              ["Average", "Good", "Top"][tier],
-            "ocean_similarity":        ocean_sim,
-            "vibe_match":              vibe_bonus > 0,
-            "final_score":             final_score,
-            "estimated_budget":        round(float(guide.get("daily_rate", 0)) * duration, 2),
-            "vibe_label":              guide["vibe_label"],
-            "user_vibe":               user_vibe,
-            "openness_score":          float(guide.get("openness_score") or 0),
-            "conscientiousness_score": float(guide.get("conscientiousness_score") or 0),
-            "extraversion_score":      float(guide.get("extraversion_score") or 0),
-            "agreeableness_score":     float(guide.get("agreeableness_score") or 0),
-            "neuroticism_score":       float(guide.get("neuroticism_score") or 0),
-            "confidence":              ocean_sim,
+            # ── Fields used by guide_routes.py ────────────────────────────────
+            "guide_id"        : g.get("guide_id"),
+            "name"            : g.get("name"),
+            "base_location"   : g.get("base_location"),
+            "daily_rate"      : daily_rate,
+            "language_spoken" : g.get("language_spoken"),
+            "rating"          : float(g.get("rating") or 0),
+            "status"          : g.get("status"),
+            "predicted_tier"  : predicted_tier,
+            "tier_label"      : ["Average", "Good", "Top"][predicted_tier],
+            "ocean_similarity": round(match_score * 100, 2),
+            "vibe_match"      : vibe_compat >= 0.7,
+            "final_score"     : final_score,
+            "estimated_budget": estimated_budget,   # LKR
+            "vibe_label"      : guide_vibe,          # computed, not from DB
+            "confidence"      : round(match_score * 100, 2),
+
+            # ── Extra detail fields (used by Guides.jsx) ──────────────────────
+            "openness_score"          : o,
+            "conscientiousness_score" : c,
+            "extraversion_score"      : e,
+            "agreeableness_score"     : a,
+            "neuroticism_score"       : n,
+            "vibe_compat"             : round(vibe_compat, 4),
+            "match_score"             : round(match_score, 4),
+            "quality_score"           : round(quality_score, 4),
         })
 
     results.sort(key=lambda x: x["final_score"], reverse=True)
