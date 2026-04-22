@@ -1,0 +1,31 @@
+hotel_id,name,location,budget_per_night,type,source_name,source_url
+3016001,Anantara Peace Haven Tangalle Resort,Tangalle Southern Province,112000,luxury_villa,booking.com,https://www.booking.com/hotel/index.html
+3016002,The Fortress Resort and Spa Koggala,Koggala Southern Province,79000,wellness_spa,booking.com,https://www.booking.com/hotel/index.html
+3016003,Araliya Beach Resort and Spa Unawatuna,Unawatuna Southern Province,36500,beach_resort,booking.com,https://www.booking.com/hotel/index.html
+3016004,Heritance Kandalama,Dambulla Central Province,69000,cultural_heritage,booking.com,https://www.booking.com/hotel/index.html
+3016005,Uga Ulagalla Resort Anuradhapura,Anuradhapura North Central Province,98000,eco_lodge,booking.com,https://www.booking.com/hotel/index.html
+3016006,EKHO Safari Tissamaharama,Tissamaharama Southern Province,32000,safari_lodge,booking.com,https://www.booking.com/hotel/index.html
+3016007,The Habitat Kosgoda by Asia Leisure,Kosgoda Southern Province,24000,boutique_hotel,booking.com,https://www.booking.com/hotel/index.html
+3016008,Sri Sharavi Beach Villas and Spa Mirissa,Mirissa Southern Province,56000,wellness_spa,booking.com,https://www.booking.com/hotel/index.html
+3016009,Ayu Resort Ahangama,Ahangama Southern Province,21500,boutique_hotel,booking.com,https://www.booking.com/hotel/index.html
+3016010,The Blue Water Wadduwa,Wadduwa Western Province,47000,beach_resort,booking.com,https://www.booking.com/hotel/index.html
+3016011,Amaya Beach Passikudah,Passikudah Eastern Province,43000,beach_resort,booking.com,https://www.booking.com/hotel/index.html
+3016012,The Calm Resort and Spa Passikudah,Passikudah Eastern Province,39000,wellness_spa,booking.com,https://www.booking.com/hotel/index.html
+3016013,The Radh Hotel Kandy,Kandy Central Province,27500,boutique_hotel,booking.com,https://www.booking.com/hotel/index.html
+3016014,Earls Regent Hotel Kandy,Kandy Central Province,21000,city_business,booking.com,https://www.booking.com/hotel/index.html
+3016015,The Golden Crown Hotel Kandy,Kandy Central Province,35500,luxury_villa,booking.com,https://www.booking.com/hotel/index.html
+3016016,Heaven Seven Nuwara Eliya,Nuwara Eliya Central Province,16500,hill_retreat,booking.com,https://www.booking.com/hotel/index.html
+3016017,Serene Kingfisher Hotel Kandy,Kandy Central Province,18500,guesthouse,booking.com,https://www.booking.com/hotel/index.html
+3016018,Hotel J Ambalangoda,Ambalangoda Southern Province,14800,beach_resort,booking.com,https://www.booking.com/hotel/index.html
+3016019,R Degrees Boutique Hotel Ambalangoda,Ambalangoda Southern Province,33500,boutique_hotel,booking.com,https://www.booking.com/hotel/index.html
+3016020,Shinagawa Beach Balapitiya,Balapitiya Southern Province,42000,beach_resort,booking.com,https://www.booking.com/hotel/index.html
+3016021,The Rainforest Ecolodge Deniyaya,Deniyaya Southern Province,39000,eco_lodge,booking.com,https://www.booking.com/hotel/index.html
+3016022,EKHO Lake House Polonnaruwa,Polonnaruwa North Central Province,24500,cultural_heritage,booking.com,https://www.booking.com/hotel/index.html
+3016023,Hotel Sudu Araliya Polonnaruwa,Polonnaruwa North Central Province,19800,family_resort,booking.com,https://www.booking.com/hotel/index.html
+3016024,Uga Bay Passikudah,Passikudah Eastern Province,64000,luxury_villa,booking.com,https://www.booking.com/hotel/index.html
+3016025,Trinco Blu by Cinnamon,Trincomalee Eastern Province,34500,beach_resort,booking.com,https://www.booking.com/hotel/index.html
+3016026,Amaranthe Bay Resort Trincomalee,Trincomalee Eastern Province,28500,wellness_spa,booking.com,https://www.booking.com/hotel/index.html
+3016027,Hotel Tobiko Trincomalee,Trincomalee Eastern Province,12200,guesthouse,booking.com,https://www.booking.com/hotel/index.html
+3016028,Weligama Ocean Breeze,Weligama Southern Province,16800,surf_hostel,booking.com,https://www.booking.com/hotel/index.html
+3016029,Anara Villa by the Sea Mirissa,Mirissa Southern Province,26200,boutique_hotel,booking.com,https://www.booking.com/hotel/index.html
+3016030,Yala Peak View Cabanas,Tissamaharama Southern Province,9600,budget_hostel,booking.com,https://www.booking.com/hotel/index.html

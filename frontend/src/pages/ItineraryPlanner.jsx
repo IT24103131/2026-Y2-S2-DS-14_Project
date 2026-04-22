@@ -119,11 +119,11 @@ function SavedGuideCard({ guide }) {
             color: "#fff",
         }}>
             <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.4)", marginBottom:10 }}>
-                🧭 Your Booked Guide
+                 Your Booked Guide
             </div>
             <div style={{ fontWeight:600, fontSize:14, marginBottom:4 }}>{guide.name}</div>
             <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)", marginBottom:4 }}>
-                🗣 {guide.language} · 📍 {guide.base_location}
+                 {guide.language} · {guide.base_location}
             </div>
             <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", marginBottom:6 }}>
                 ⭐ {guide.rating} · LKR {Number(guide.daily_rate).toLocaleString()}/day

@@ -11,10 +11,10 @@ import { fmtLKR, lkrToUsd, fmtUSD } from "../utils/currency";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LANGUAGES = [
-    { key: "Sinhala", icon: "🌿" },
-    { key: "Tamil",   icon: "🌺" },
-    { key: "English", icon: "🌐" },
-    { key: "All",     icon: "✨" },
+    { key: "Sinhala" },
+    { key: "Tamil"  },
+    { key: "English" },
+    { key: "All" },
 ];
 
 const TIER_LABEL = { Top: "⭐ Top Guide", Good: "✓ Good Match", Average: "Match" };

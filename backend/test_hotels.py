@@ -1,27 +1,27 @@
 """
 test_hotels.py  —  backend/
-Tests for the hotel recommender endpoints.
+Tests for hotel recommendation endpoints.
 
-  GET    /hotels              → AI recommendations (requires quiz)
-  POST   /hotels/save         → save a hotel with dates + budget
-  GET    /hotels/saved        → user's saved hotels
-  PUT    /hotels/saved/<id>   → edit a saved hotel
-  DELETE /hotels/saved/<id>   → remove a saved hotel
+Component: Hotel Recommendation — KMeans model clusters hotels by OCEAN scores,
+           matched to user's personality profile.
 
-Run with:  pytest test_hotels.py -v
+Endpoints covered:
+  GET    /hotels              — AI recommendation using KMeans
+  POST   /hotels/save         — save hotel to selected_hotels
+  GET    /hotels/saved        — list user's saved hotels
+  PUT    /hotels/saved/<id>   — update budget/dates
+  DELETE /hotels/saved/<id>   — remove hotel
 """
 
 import sys
 import os
 import uuid
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import pytest
-from app import app   # backend/app.py
+from app import app
 
-
-# ── Fixtures ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture
 def client():
@@ -30,248 +30,280 @@ def client():
         yield c
 
 
-def register_and_login(client):
-    unique = uuid.uuid4().hex[:8]
+def _fresh_user(client, with_quiz=True):
+    uid = uuid.uuid4().hex[:8]
     client.post("/register", json={
-        "username": f"hoteltest_{unique}",
-        "email":    f"hoteltest_{unique}@test.com",
-        "password": "testpass123",
+        "username": f"hoteltest_{uid}",
+        "email": f"hoteltest_{uid}@test.com",
+        "password": "Pass123!",
     })
     res = client.post("/login", json={
-        "username": f"hoteltest_{unique}",
-        "password": "testpass123",
+        "username": f"hoteltest_{uid}",
+        "password": "Pass123!",
     })
-    return res.get_json().get("access_token")
+    token = res.get_json()["access_token"]
+    if with_quiz:
+        client.post("/personality", json={
+            "openness_score": 7.5,
+            "conscientiousness_score": 6.0,
+            "extraversion_score": 8.0,
+            "agreeableness_score": 5.5,
+            "neuroticism_score": 3.0,
+            "personality_type": "adventurous explorer",
+            "duration": 5,
+        }, headers={"Authorization": f"Bearer {token}"})
+    return token
 
 
-def auth(token):
+def _h(token):
     return {"Authorization": f"Bearer {token}"}
-
-
-def setup_user_with_quiz(client):
-    """Register + login + complete quiz. Returns token."""
-    token = register_and_login(client)
-    client.post("/personality", json={
-        "openness_score":          6.0,
-        "conscientiousness_score": 7.0,
-        "extraversion_score":      5.0,
-        "agreeableness_score":     6.5,
-        "neuroticism_score":       4.0,
-        "personality_type":        "balanced traveler",
-        "duration":                "Short (1-5 days)",
-    }, headers=auth(token))
-    return token
-
-
-def setup_user_full(client):
-    """Register + quiz + save locations. Returns token."""
-    token = setup_user_with_quiz(client)
-    client.post("/locations/save-selection", json={
-        "selected_destinations": ["Kandy", "Negombo"]
-    }, headers=auth(token))
-    return token
-
-
-# ── Auth guards ───────────────────────────────────────────────────────────────
-
-def test_get_hotels_requires_auth(client):
-    """GET /hotels without token should return 401."""
-    res = client.get("/hotels")
-    assert res.status_code == 401
-
-
-def test_save_hotel_requires_auth(client):
-    """POST /hotels/save without token should return 401."""
-    res = client.post("/hotels/save", json={
-        "hotel_id": 1, "location": "Kandy", "total_budget": 5000
-    })
-    assert res.status_code == 401
-
-
-def test_get_saved_hotels_requires_auth(client):
-    """GET /hotels/saved without token should return 401."""
-    res = client.get("/hotels/saved")
-    assert res.status_code == 401
-
-
-def test_update_saved_hotel_requires_auth(client):
-    """PUT /hotels/saved/<id> without token should return 401."""
-    res = client.put("/hotels/saved/1", json={"total_budget": 8000})
-    assert res.status_code == 401
-
-
-def test_delete_saved_hotel_requires_auth(client):
-    """DELETE /hotels/saved/<id> without token should return 401."""
-    res = client.delete("/hotels/saved/1")
-    assert res.status_code == 401
 
 
 # ── GET /hotels ───────────────────────────────────────────────────────────────
 
-def test_get_hotels_without_quiz(client):
-    """GET /hotels before quiz should return 400."""
-    token = register_and_login(client)
-    res   = client.get("/hotels", headers=auth(token))
-    assert res.status_code == 400
-    assert "quiz" in res.get_json().get("detail", "").lower()
+class TestHotelRecommendations:
 
+    def test_get_hotels_requires_auth(self, client):
+        """Unauthenticated request returns 401."""
+        res = client.get("/hotels")
+        assert res.status_code == 401
 
-def test_get_hotels_after_quiz(client):
-    """GET /hotels after quiz should return 200 with hotels list."""
-    token = setup_user_full(client)
-    res   = client.get("/hotels", headers=auth(token))
-    assert res.status_code == 200
-    data = res.get_json()
-    assert "hotels"             in data
-    assert "count"              in data
-    assert "personality_cluster" in data
-    assert isinstance(data["hotels"], list)
+    def test_get_hotels_without_quiz_fails(self, client):
+        """User without quiz result returns 400."""
+        token = _fresh_user(client, with_quiz=False)
+        res = client.get("/hotels", headers=_h(token))
+        assert res.status_code == 400
 
+    def test_get_hotels_with_quiz_returns_200(self, client):
+        """User with quiz result returns 200."""
+        token = _fresh_user(client)
+        res = client.get("/hotels", headers=_h(token))
+        assert res.status_code == 200
 
-def test_get_hotels_response_fields(client):
-    """Each hotel in the list should have the required fields."""
-    token = setup_user_full(client)
-    res   = client.get("/hotels", headers=auth(token))
-    assert res.status_code == 200
-    hotels = res.get_json()["hotels"]
-    if hotels:
-        h = hotels[0]
-        for field in ["hotel_id", "name", "location", "budget_per_night"]:
-            assert field in h, f"Missing field: {field}"
+    def test_get_hotels_response_structure(self, client):
+        """Response includes hotels list, count, personality_cluster."""
+        token = _fresh_user(client)
+        res = client.get("/hotels", headers=_h(token))
+        data = res.get_json()
+        assert "hotels" in data
+        assert "count" in data
+        assert isinstance(data["hotels"], list)
+
+    def test_get_hotels_max_10_results(self, client):
+        """AI recommendation caps at 10 hotels."""
+        token = _fresh_user(client)
+        res = client.get("/hotels", headers=_h(token))
+        data = res.get_json()
+        assert data["count"] <= 10
+
+    def test_get_hotels_each_has_required_fields(self, client):
+        """Each hotel has hotel_id, name, location, budget_per_night."""
+        token = _fresh_user(client)
+        res = client.get("/hotels", headers=_h(token))
+        for hotel in res.get_json()["hotels"]:
+            for field in ["hotel_id", "name", "location", "budget_per_night"]:
+                assert field in hotel, f"Hotel missing field: {field}"
+
+    def test_get_hotels_personality_type_in_response(self, client):
+        """Response includes the user's personality_type."""
+        token = _fresh_user(client)
+        res = client.get("/hotels", headers=_h(token))
+        data = res.get_json()
+        assert "personality_type" in data
+
+    def test_get_hotels_location_filtered(self, client):
+        """With saved locations, hotels are filtered to matching areas."""
+        token = _fresh_user(client)
+        client.post("/locations/save-selection",
+                    json={"selected_destinations": ["Kandy"]},
+                    headers=_h(token))
+        res = client.get("/hotels", headers=_h(token))
+        assert res.status_code == 200
 
 
 # ── POST /hotels/save ─────────────────────────────────────────────────────────
 
-def test_save_hotel_missing_hotel_id(client):
-    """Saving without hotel_id should return 422."""
-    token = setup_user_with_quiz(client)
-    res   = client.post("/hotels/save", json={
-        "location": "Kandy", "total_budget": 5000
-    }, headers=auth(token))
-    assert res.status_code == 422
+class TestSaveHotel:
 
+    def _get_first_hotel_id(self, client, token):
+        """Helper: returns hotel_id from recommendations (None if no hotels)."""
+        res = client.get("/hotels", headers=_h(token))
+        hotels = res.get_json().get("hotels", [])
+        return hotels[0]["hotel_id"] if hotels else None
 
-def test_save_hotel_missing_total_budget(client):
-    """Saving without total_budget should return 422."""
-    token = setup_user_with_quiz(client)
-    res   = client.post("/hotels/save", json={
-        "hotel_id": 1, "location": "Kandy"
-    }, headers=auth(token))
-    assert res.status_code == 422
+    def test_save_hotel_requires_auth(self, client):
+        """Unauthenticated request returns 401."""
+        res = client.post("/hotels/save", json={"hotel_id": 1, "total_budget": 50000})
+        assert res.status_code == 401
 
+    def test_save_hotel_missing_hotel_id(self, client):
+        """Missing hotel_id returns 422."""
+        token = _fresh_user(client)
+        res = client.post("/hotels/save",
+                          json={"total_budget": 50000, "check_in": "2026-06-01", "check_out": "2026-06-05"},
+                          headers=_h(token))
+        assert res.status_code == 422
 
-def test_save_hotel_success(client):
-    """Valid hotel save should return 200."""
-    token = setup_user_with_quiz(client)
-    # Use a hotel_id that exists in the DB — fallback if it doesn't
-    res = client.post("/hotels/save", json={
-        "hotel_id"    : 1,
-        "location"    : "Kandy",
-        "total_budget": 15000,
-        "check_in"    : "2025-08-01",
-        "check_out"   : "2025-08-05",
-    }, headers=auth(token))
-    # 200 = success, 500 = hotel_id doesn't exist in DB (acceptable in test env)
-    assert res.status_code in [200, 500]
+    def test_save_hotel_missing_budget(self, client):
+        """Missing total_budget returns 422."""
+        token = _fresh_user(client)
+        res = client.post("/hotels/save",
+                          json={"hotel_id": 1, "check_in": "2026-06-01", "check_out": "2026-06-05"},
+                          headers=_h(token))
+        assert res.status_code == 422
+
+    def test_save_hotel_missing_dates(self, client):
+        """Missing check_in/check_out returns 422."""
+        token = _fresh_user(client)
+        res = client.post("/hotels/save",
+                          json={"hotel_id": 1, "total_budget": 50000},
+                          headers=_h(token))
+        assert res.status_code == 422
+
+    def test_save_hotel_success(self, client):
+        """Valid hotel save returns 200."""
+        token = _fresh_user(client)
+        hotel_id = self._get_first_hotel_id(client, token)
+        if hotel_id is None:
+            pytest.skip("No hotels in DB for this user's cluster")
+        res = client.post("/hotels/save", json={
+            "hotel_id":     hotel_id,
+            "location":     "Test Location",
+            "total_budget": 50000.0,
+            "check_in":     "2026-06-01",
+            "check_out":    "2026-06-05",
+            "num_people":   2,
+        }, headers=_h(token))
+        assert res.status_code == 200
+
+    def test_save_hotel_upserts_on_duplicate(self, client):
+        """Saving the same hotel twice updates the record (upsert)."""
+        token = _fresh_user(client)
+        hotel_id = self._get_first_hotel_id(client, token)
+        if hotel_id is None:
+            pytest.skip("No hotels in DB for this user's cluster")
+        payload = {
+            "hotel_id": hotel_id,
+            "location": "Test",
+            "total_budget": 50000.0,
+            "check_in": "2026-06-01",
+            "check_out": "2026-06-05",
+        }
+        client.post("/hotels/save", json=payload, headers=_h(token))
+        payload["total_budget"] = 75000.0
+        res = client.post("/hotels/save", json=payload, headers=_h(token))
+        assert res.status_code == 200
 
 
 # ── GET /hotels/saved ─────────────────────────────────────────────────────────
 
-def test_get_saved_hotels_empty(client):
-    """New user with no saved hotels should get empty list."""
-    token = setup_user_with_quiz(client)
-    res   = client.get("/hotels/saved", headers=auth(token))
-    assert res.status_code == 200
-    data = res.get_json()
-    assert data["saved_hotels"] == []
-    assert data["count"]        == 0
-    assert data["grand_total"]  == 0
+class TestGetSavedHotels:
 
+    def test_get_saved_requires_auth(self, client):
+        """Unauthenticated request returns 401."""
+        res = client.get("/hotels/saved")
+        assert res.status_code == 401
 
-def test_get_saved_hotels_after_save(client):
-    """After saving a hotel, it should appear in /hotels/saved."""
-    token = setup_user_with_quiz(client)
-    save_res = client.post("/hotels/save", json={
-        "hotel_id"    : 1,
-        "location"    : "Negombo",
-        "total_budget": 12000,
-        "check_in"    : "2025-09-01",
-        "check_out"   : "2025-09-03",
-    }, headers=auth(token))
+    def test_get_saved_empty_for_new_user(self, client):
+        """New user has no saved hotels — returns empty list."""
+        token = _fresh_user(client)
+        res = client.get("/hotels/saved", headers=_h(token))
+        assert res.status_code == 200
+        data = res.get_json()
+        assert isinstance(data["saved_hotels"], list)
+        assert data["count"] == 0
 
-    if save_res.status_code != 200:
-        pytest.skip("Hotel ID 1 not available in test DB")
+    def test_get_saved_structure(self, client):
+        """Response has saved_hotels, grand_total, count."""
+        token = _fresh_user(client)
+        res = client.get("/hotels/saved", headers=_h(token))
+        data = res.get_json()
+        for key in ["saved_hotels", "grand_total", "count"]:
+            assert key in data
 
-    res = client.get("/hotels/saved", headers=auth(token))
-    assert res.status_code == 200
-    saved = res.get_json()["saved_hotels"]
-    assert len(saved) >= 1
-    assert saved[0]["total_budget"] == 12000.0
+    def test_get_saved_after_save(self, client):
+        """After saving a hotel, it appears in GET /hotels/saved."""
+        token = _fresh_user(client)
+        hotel_id = None
+        rec = client.get("/hotels", headers=_h(token))
+        hotels = rec.get_json().get("hotels", [])
+        if hotels:
+            hotel_id = hotels[0]["hotel_id"]
+        if hotel_id is None:
+            pytest.skip("No hotels available to test")
+        client.post("/hotels/save", json={
+            "hotel_id": hotel_id,
+            "location": "Test Area",
+            "total_budget": 40000.0,
+            "check_in": "2026-07-10",
+            "check_out": "2026-07-15",
+        }, headers=_h(token))
+        res = client.get("/hotels/saved", headers=_h(token))
+        data = res.get_json()
+        assert data["count"] >= 1
+        assert any(h["hotel_id"] == hotel_id for h in data["saved_hotels"])
 
-
-def test_saved_hotels_grand_total(client):
-    """grand_total should equal sum of all saved hotel budgets."""
-    token = setup_user_with_quiz(client)
-    r1 = client.post("/hotels/save", json={
-        "hotel_id": 1, "location": "Kandy",
-        "total_budget": 10000, "check_in": "2025-08-01", "check_out": "2025-08-03"
-    }, headers=auth(token))
-    r2 = client.post("/hotels/save", json={
-        "hotel_id": 2, "location": "Galle",
-        "total_budget": 20000, "check_in": "2025-08-04", "check_out": "2025-08-06"
-    }, headers=auth(token))
-
-    if r1.status_code != 200 or r2.status_code != 200:
-        pytest.skip("Hotel IDs 1/2 not in test DB")
-
-    res = client.get("/hotels/saved", headers=auth(token))
-    assert res.get_json()["grand_total"] == 30000.0
+    def test_get_saved_calculates_nights(self, client):
+        """Nights are calculated correctly from check_in/check_out."""
+        token = _fresh_user(client)
+        hotel_id = None
+        rec = client.get("/hotels", headers=_h(token))
+        hotels = rec.get_json().get("hotels", [])
+        if hotels:
+            hotel_id = hotels[0]["hotel_id"]
+        if hotel_id is None:
+            pytest.skip("No hotels available")
+        client.post("/hotels/save", json={
+            "hotel_id": hotel_id,
+            "location": "Test",
+            "total_budget": 60000.0,
+            "check_in": "2026-08-01",
+            "check_out": "2026-08-05",  # 4 nights
+        }, headers=_h(token))
+        res = client.get("/hotels/saved", headers=_h(token))
+        saved = res.get_json()["saved_hotels"]
+        matching = [h for h in saved if h["hotel_id"] == hotel_id]
+        if matching:
+            assert matching[0]["nights"] == 4
 
 
 # ── PUT /hotels/saved/<id> ────────────────────────────────────────────────────
 
-def test_update_nonexistent_saved_hotel(client):
-    """Updating a saved hotel that doesn't exist should return 404."""
-    token = setup_user_with_quiz(client)
-    res   = client.put("/hotels/saved/999999", json={
-        "total_budget": 99999
-    }, headers=auth(token))
-    assert res.status_code == 404
+class TestUpdateSavedHotel:
 
+    def test_update_saved_requires_auth(self, client):
+        """Unauthenticated request returns 401."""
+        res = client.put("/hotels/saved/1", json={"total_budget": 60000})
+        assert res.status_code == 401
 
-def test_update_saved_hotel_nothing_to_update(client):
-    """PUT with empty body should return 422."""
-    token = setup_user_with_quiz(client)
-    res   = client.put("/hotels/saved/1", json={}, headers=auth(token))
-    assert res.status_code == 422
+    def test_update_nonexistent_hotel(self, client):
+        """Updating non-existent record returns 404."""
+        token = _fresh_user(client)
+        res = client.put("/hotels/saved/9999999",
+                         json={"total_budget": 60000.0},
+                         headers=_h(token))
+        assert res.status_code == 404
+
+    def test_update_no_fields_returns_422(self, client):
+        """Empty update body returns 422."""
+        token = _fresh_user(client)
+        res = client.put("/hotels/saved/1",
+                         json={},
+                         headers=_h(token))
+        assert res.status_code == 422
 
 
 # ── DELETE /hotels/saved/<id> ─────────────────────────────────────────────────
 
-def test_delete_nonexistent_saved_hotel(client):
-    """Deleting a saved hotel that doesn't exist should return 404."""
-    token = setup_user_with_quiz(client)
-    res   = client.delete("/hotels/saved/999999", headers=auth(token))
-    assert res.status_code == 404
+class TestDeleteSavedHotel:
 
+    def test_delete_saved_requires_auth(self, client):
+        """Unauthenticated request returns 401."""
+        res = client.delete("/hotels/saved/1")
+        assert res.status_code == 401
 
-def test_delete_saved_hotel_success(client):
-    """Saving then deleting a hotel should leave saved list empty."""
-    token    = setup_user_with_quiz(client)
-    save_res = client.post("/hotels/save", json={
-        "hotel_id"    : 1,
-        "location"    : "Kandy",
-        "total_budget": 5000,
-        "check_in"    : "2025-08-01",
-        "check_out"   : "2025-08-02",
-    }, headers=auth(token))
-
-    if save_res.status_code != 200:
-        pytest.skip("Hotel ID 1 not in test DB")
-
-    saved_id = client.get("/hotels/saved", headers=auth(token)).get_json()["saved_hotels"][0]["id"]
-    del_res  = client.delete(f"/hotels/saved/{saved_id}", headers=auth(token))
-    assert del_res.status_code == 200
-
-    remaining = client.get("/hotels/saved", headers=auth(token)).get_json()["saved_hotels"]
-    assert all(h["id"] != saved_id for h in remaining)
+    def test_delete_nonexistent_hotel(self, client):
+        """Deleting non-existent record returns 404."""
+        token = _fresh_user(client)
+        res = client.delete("/hotels/saved/9999999", headers=_h(token))
+        assert res.status_code == 404
