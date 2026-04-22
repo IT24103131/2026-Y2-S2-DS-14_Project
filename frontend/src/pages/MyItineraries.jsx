@@ -597,9 +597,9 @@ function TripCard({ it, feedbacks, onRate, onEdit, onDelete, onRefreshFeedbacks 
                                         )}
                                     </div>
                                     <div style={{ textAlign:"right" }}>
-                                        <div style={{ fontWeight:700, color:"#ffcc00", fontSize:14 }}>{fmtLKR(it.saved_hotel.total_budget)}</div>
-                                        <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>~{fmtUSD(lkrToUsd(it.saved_hotel.total_budget))}</div>
-                                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>total budget</div>
+                                        <div style={{ fontWeight:700, color:"#D4A373", fontSize:14 }}>{fmtLKR(it.saved_hotel.total_budget)}</div>
+                                        <div style={{ fontSize:11, color:"rgba(62,39,35,0.4)" }}>~{fmtUSD(lkrToUsd(it.saved_hotel.total_budget))}</div>
+                                        <div style={{ fontSize:10, color:"rgba(62,39,35,0.4)" }}>total budget</div>
                                     </div>
                                 </div>
                             </div>
