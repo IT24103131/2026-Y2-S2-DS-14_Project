@@ -1,12 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
-import { useMap } from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
 import API from "../services/api";
 import Layout from "../components/Layout";
 import NextStepBanner from "../components/NextStepBanner";
+import EnhancedMap from "../components/EnhancedMap";
+import { getLocationCategory } from "../components/EnhancedMap";
 import { fmtLKR, lkrToUsd, fmtUSD } from "../utils/currency";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -30,14 +28,6 @@ import { fmtLKR, lkrToUsd, fmtUSD } from "../utils/currency";
 //   POST /feedback                  → submit star rating
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Fix Leaflet icon paths broken by bundlers
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-    iconUrl:       "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-    shadowUrl:     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-});
-
 const DAY_COLORS    = ["#8C3322","#D4A373","#A95C42","#6B2E1E","#C68A57","#823A2A","#DEB887","#5E2012","#B5764F","#A8402D"];
 const STARTING_POINTS = [
     { value: "colombo", label: "Colombo (CMB Airport)" },
@@ -58,22 +48,6 @@ function HansaWatermark() {
             </svg>
         </div>
     );
-}
-
-// ── Leaflet helpers ───────────────────────────────────────────────────────────
-function makeIcon(number, color) {
-    return L.divIcon({
-        html: `<div style="width:28px;height:28px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:2px solid rgba(255,255,255,0.6);box-shadow:0 2px 8px rgba(0,0,0,0.4)">${number}</div>`,
-        className: "", iconSize: [28, 28], iconAnchor: [14, 14],
-    });
-}
-
-function FitBounds({ positions }) {
-    const map = useMap();
-    useEffect(() => {
-        if (positions.length > 0) map.fitBounds(positions, { padding: [30, 30] });
-    }, [positions, map]);
-    return null;
 }
 
 // ── Sidebar cards: saved hotel + guide ───────────────────────────────────────
@@ -237,7 +211,7 @@ function TripSettings({ plannerData, onSubmit }) {
             <div style={{ background:"#FFFFFF", border:"1px solid #E8D5BC", borderRadius:14, padding:32, color:"#3E2723", textAlign:"center", boxShadow:"0 4px 14px rgba(62,39,35,0.06)" }}>
                 <div style={{ fontSize:40, marginBottom:12 }}>📍</div>
                 <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:20, marginBottom:8 }}>No saved locations yet</h3>
-                <p style={{ fontSize:13.5, color:"rgba(62,39,35,0.6)", marginBottom:20 }}>
+                <p style={{ fontSize:13.5, color:"rgba(62,39,35,0.6)" }}>
                     Save at least 2 destinations from the Locations page before generating an itinerary.
                 </p>
                 <a href="/locations" style={{ padding:"11px 24px", background:"#8C3322", borderRadius:10, fontWeight:700, fontSize:13.5, color:"#fff", textDecoration:"none", display:"inline-block" }}>
@@ -373,10 +347,6 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
         hotel_suggestions, n_days, total_distance_km
     } = result;
 
-    const allPositions = ordered_clusters.flatMap(day =>
-        day.locations.map(l => [l.lat, l.lng])
-    );
-
     return (
         <div>
             {/* ── Header ── */}
@@ -403,54 +373,31 @@ function ItineraryResult({ result, onBack, onNewTrip }) {
 
             {/* ── Full-width Map ── */}
             <div style={{ borderRadius:14, overflow:"hidden", border:"1px solid #E8D5BC", marginBottom:20, boxShadow:"0 2px 12px rgba(62,39,35,0.08)", position:"relative", zIndex:1 }}>
-                <MapContainer
+                <EnhancedMap
+                    locations={ordered_clusters.flatMap(day => 
+                        day.locations.map(loc => ({
+                            ...loc,
+                            category: getLocationCategory(loc.name),
+                            day_number: day.day_number
+                        }))
+                    )}
+                    routeLines={ordered_clusters.map(day => {
+                        const color = DAY_COLORS[(day.day_number - 1) % DAY_COLORS.length];
+                        const positions = day.locations.map(l => [l.lat, l.lng]);
+                        return {
+                            positions,
+                            color,
+                            dayNumber: day.day_number
+                        };
+                    })}
+                    bounds={[[5.9, 79.5], [9.9, 81.9]]}
+                    maxBounds={[[5.5, 79.0], [10.2, 82.2]]}
+                    height={420}
+                    showRouteLines={true}
+                    theme="dark"
                     center={[7.8731, 80.7718]}
                     zoom={7}
-                    maxBounds={[[5.5, 79.0],[10.2, 82.2]]}
-                    maxBoundsViscosity={1.0}
-                    dragging={true}
-                    scrollWheelZoom={false}
-                    doubleClickZoom={false}
-                    zoomControl={true}
-                    style={{ height:420, width:"100%" }}
-                >
-                    <TileLayer
-                        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                        attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-                    />
-                    <FitBounds positions={allPositions} />
-                    {(() => {
-                        let globalStop = 0;
-                        return ordered_clusters.map((day, dayIdx) => {
-                            const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
-                            const pts = day.locations.map(l => [l.lat, l.lng]);
-                            return (
-                                <div key={day.day_number}>
-                                    {pts.length > 1 && (
-                                        <Polyline positions={pts} color={color} weight={2.5} opacity={0.75} dashArray="6,4" />
-                                    )}
-                                    {day.locations.map((loc, li) => {
-                                        globalStop++;
-                                        return (
-                                            <Marker key={`${day.day_number}-${li}`} position={[loc.lat, loc.lng]} icon={makeIcon(globalStop, color)}>
-                                                <Popup>
-                                                    <div style={{ fontFamily:"'DM Sans',sans-serif", minWidth:150 }}>
-                                                        <strong>{loc.name}</strong>
-                                                        <div style={{ fontSize:11, color:"#64748b", margin:"4px 0" }}>Day {day.day_number} · Stop {li+1}</div>
-                                                        <div style={{ fontSize:11 }}>
-                                                            {loc.visit_duration_hours}h &nbsp;
-                                                            {loc.entry_fee_usd > 0 ? `$${loc.entry_fee_usd}` : "Free"}
-                                                        </div>
-                                                    </div>
-                                                </Popup>
-                                            </Marker>
-                                        );
-                                    })}
-                                </div>
-                            );
-                        });
-                    })()}
-                </MapContainer>
+                />
             </div>
 
             {/* ── Stats row — 4 columns full width ── */}

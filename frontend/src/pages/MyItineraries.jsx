@@ -5,6 +5,8 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import API from "../services/api";
 import Layout from "../components/Layout";
+import EnhancedMap from "../components/EnhancedMap";
+import { getLocationCategory } from "../components/EnhancedMap";
 import { fmtLKR, lkrToUsd, fmtUSD } from "../utils/currency";
 
 
@@ -17,14 +19,6 @@ import { fmtLKR, lkrToUsd, fmtUSD } from "../utils/currency";
 // For AI trips: shows destinations, day plan, route — same as before.
 // Feedback (star + comment) visible and fully editable for all trips.
 // ─────────────────────────────────────────────────────────────────────────────
-
-// Fix Leaflet icon paths
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-    iconUrl:       "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-    shadowUrl:     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-});
 
 const DAY_COLORS = ["#8C3322","#D4A373","#A95C42","#6B2E1E","#C68A57","#823A2A","#DEB887","#5E2012","#B5764F","#A8402D"];
 
@@ -42,13 +36,6 @@ const getIcon    = (t = "") => TRIP_ICONS[t.toLowerCase()] || "🗺️";
 const fmt        = (d) => d ? new Date(d).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) : "—";
 
 // ── Leaflet helpers ───────────────────────────────────────────────────────────
-function makeIcon(n, color) {
-    return L.divIcon({
-        html: `<div style="width:24px;height:24px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;border:2px solid rgba(255,255,255,0.6);box-shadow:0 2px 6px rgba(0,0,0,0.4)">${n}</div>`,
-        className:"", iconSize:[24,24], iconAnchor:[12,12],
-    });
-}
-
 function FitBounds({ positions }) {
     const map = useMap();
     useEffect(() => {
@@ -65,6 +52,26 @@ function OptimizedMap({ clusters }) {
 
     if (allPositions.length === 0) return null;
 
+    // Prepare locations for EnhancedMap
+    const locations = clusters.flatMap(day => 
+        day.locations.map(loc => ({
+            ...loc,
+            category: getLocationCategory(loc.name),
+            day_number: day.day_number
+        }))
+    );
+
+    // Prepare route lines for EnhancedMap
+    const routeLines = clusters.map(day => {
+        const color = DAY_COLORS[day.day_number % DAY_COLORS.length];
+        const positions = day.locations.map(l => [l.lat, l.lng]);
+        return {
+            positions,
+            color,
+            dayNumber: day.day_number
+        };
+    });
+
     return (
         <div style={{
             borderRadius: 10,
@@ -72,83 +79,15 @@ function OptimizedMap({ clusters }) {
             border: "1px solid rgba(255,255,255,0.15)",
             marginBottom: 16
         }}>
-            <MapContainer
-                bounds={[
-                    [5.9, 79.5],
-                    [9.9, 81.9]
-                ]}
-                maxBounds={[
-                    [5.5, 79.0],
-                    [10.2, 82.2]
-                ]}
-                maxBoundsViscosity={1.0}   // 👈 KEY FIX (stops bounce)
-                dragging={true}
-                scrollWheelZoom={false}    // optional (reduces chaos)
-                doubleClickZoom={false}    // optional
-                zoomControl={true}
-                style={{ height: 800, width: "100%" }}
-            >
-                <TileLayer
-                    url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                    attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-                />
-
-                <FitBounds positions={allPositions} />
-
-                {(() => {
-                    let globalStop = 0;
-
-                    return clusters.map((day, di) => {
-                        const color = DAY_COLORS[di % DAY_COLORS.length];
-                        const pts = day.locations.map(l => [l.lat, l.lng]);
-
-                        return (
-                            <div key={day.day_number}>
-                                {/* Route line */}
-                                {pts.length > 1 && (
-                                    <Polyline positions={pts} color={color} />
-                                )}
-
-                                {/* Markers */}
-                                {day.locations.map((loc, li) => {
-                                    globalStop++;
-
-                                    return (
-                                        <Marker
-                                            key={`${day.day_number}-${li}`}
-                                            position={[loc.lat, loc.lng]}
-                                            icon={makeIcon(globalStop, color)}
-                                        >
-                                            <Popup>
-                                                <div style={{
-                                                    fontFamily: "'DM Sans',sans-serif",
-                                                    minWidth: 140
-                                                }}>
-                                                    <strong>{loc.name}</strong>
-                                                    <div style={{
-                                                        fontSize: 11,
-                                                        color: "#64748b",
-                                                        margin: "3px 0"
-                                                    }}>
-                                                        Day {day.day_number} · Stop {li + 1}
-                                                    </div>
-                                                    <div style={{ fontSize: 11 }}>
-                                                        🕐 {loc.visit_duration_hours}h &nbsp;
-                                                        {loc.entry_fee_usd > 0
-                                                            ? `💵 $${loc.entry_fee_usd}`
-                                                            : "💚 Free"}
-                                                    </div>
-                                                </div>
-                                            </Popup>
-                                        </Marker>
-                                    );
-                                })}
-                            </div>
-                        );
-                    });
-                })()}
-
-            </MapContainer>
+            <EnhancedMap
+                locations={locations}
+                routeLines={routeLines}
+                bounds={[[5.9, 79.5], [9.9, 81.9]]}
+                maxBounds={[[5.5, 79.0], [10.2, 82.2]]}
+                height={800}
+                showRouteLines={true}
+                theme="dark"
+            />
         </div>
     );
 }
