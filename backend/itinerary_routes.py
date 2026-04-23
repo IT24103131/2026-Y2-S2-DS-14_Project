@@ -18,7 +18,8 @@ from models import SessionLocal
 from utils import login_required
 from route_optimizer import optimize_route, haversine_distance
 from locations_data import SRI_LANKA_LOCATIONS, HOTELS, HOTEL_AREAS, GUIDES
-
+import requests as req
+from config import Config
 itinerary_router = Blueprint("itinerary_router", __name__)
 
 LKR_TO_USD = 320   # approximate conversion rate — adjust if needed
@@ -272,6 +273,17 @@ def optimize_itinerary(current_user, db):
     result_id        = qr[0] if qr else None
     personality_type = (qr[1] or "balanced traveler").strip().lower() if qr else "balanced traveler"
     itinerary_type   = PERSONALITY_TO_ITINERARY_TYPE.get(personality_type, "peaceful")
+
+    try:
+        r = req.post(
+            f"{Config.AI_BASE_URL}/recommend",
+            json={"user_id": current_user.user_id},
+            timeout=10
+        )
+        if r.ok:
+            itinerary_type = r.json().get("itinerary_type", itinerary_type)
+    except Exception:
+        pass
 
     title    = f"{n_days}-Day Sri Lanka Trip ({len(selected)} stops)"
     saved_id = None
