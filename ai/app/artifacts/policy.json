@@ -1,8 +1,74 @@
 {
+  "adventurous explorer": {
+    "peaceful": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "cultural": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "adventure": {
+      "alpha": 2.4,
+      "beta": 1.6
+    },
+    "beach": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "budget": {
+      "alpha": 1.0,
+      "beta": 1.0
+    }
+  },
   "balanced traveler": {
     "peaceful": {
-      "alpha": 7.0,
-      "beta": 3.0
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "cultural": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "adventure": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "beach": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "budget": {
+      "alpha": 1.0,
+      "beta": 1.0
+    }
+  },
+  "friendly cultural": {
+    "peaceful": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "cultural": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "adventure": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "beach": {
+      "alpha": 1.0,
+      "beta": 1.0
+    },
+    "budget": {
+      "alpha": 1.0,
+      "beta": 1.0
+    }
+  },
+  "organized sightseer": {
+    "peaceful": {
+      "alpha": 1.0,
+      "beta": 1.0
     },
     "cultural": {
       "alpha": 1.0,
@@ -29,76 +95,6 @@
     "cultural": {
       "alpha": 1.0,
       "beta": 1.0
-    },
-    "adventure": {
-      "alpha": 1.0,
-      "beta": 1.0
-    },
-    "beach": {
-      "alpha": 1.0,
-      "beta": 1.0
-    },
-    "budget": {
-      "alpha": 1.0,
-      "beta": 1.0
-    }
-  },
-  "adventurous explorer": {
-    "peaceful": {
-      "alpha": 1.0,
-      "beta": 1.0
-    },
-    "cultural": {
-      "alpha": 1.0,
-      "beta": 1.0
-    },
-    "adventure": {
-      "alpha": 83.40000000000002,
-      "beta": 41.6
-    },
-    "beach": {
-      "alpha": 1.0,
-      "beta": 1.0
-    },
-    "budget": {
-      "alpha": 1.0,
-      "beta": 1.0
-    }
-  },
-  "organized sightseer": {
-    "peaceful": {
-      "alpha": 1.0,
-      "beta": 1.0
-    },
-    "cultural": {
-      "alpha": 2.6,
-      "beta": 3.4000000000000004
-    },
-    "adventure": {
-      "alpha": 1.0,
-      "beta": 1.0
-    },
-    "beach": {
-      "alpha": 1.0,
-      "beta": 1.0
-    },
-    "budget": {
-      "alpha": 1.0,
-      "beta": 1.0
-    },
-    "optimized": {
-      "alpha": 2.2,
-      "beta": 1.7999999999999998
-    }
-  },
-  "friendly cultural": {
-    "peaceful": {
-      "alpha": 1.0,
-      "beta": 1.0
-    },
-    "cultural": {
-      "alpha": 9.999999999999996,
-      "beta": 7.000000000000002
     },
     "adventure": {
       "alpha": 1.0,
